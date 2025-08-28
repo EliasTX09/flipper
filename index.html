@@ -28,6 +28,26 @@
   <!-- externe libs -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
+  <!-- Minimal Serial-Layer: definiert connect() -->
+  <script>
+    async function connect() {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      const encoder = new TextEncoderStream();
+      const decoder = new TextDecoderStream();
+      encoder.readable.pipeTo(port.writable);
+      port.readable.pipeTo(decoder.writable);
+
+      window.serialWriter = encoder.writable.getWriter();
+      window.serialReader = decoder.readable.getReader();
+
+      console.log("🔌 Serial verbunden");
+      return port;
+    }
+  </script>
+
   <!-- dein RPC Client -->
   <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/notoga.js"></script>
 </head>
@@ -66,7 +86,6 @@
     const log = (m) => { logEl.textContent += "\\n" + m; logEl.scrollTop = logEl.scrollHeight; };
     const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
 
-    // Minimal TAR Parser
     function parseTar(u8){
       const files = []; const block = 512; let off = 0;
       const dec = new TextDecoder();
@@ -111,8 +130,8 @@
 
     document.getElementById('connect').onclick = async () => {
       try{
-        await connect(); // aus notoga.js
-        await commands.startRpcSession();
+        await connect(); // unser connect()
+        await commands.startRpcSession(); // aus notoga.js
         log("✅ RPC-Session gestartet");
       }catch(e){ log("❌ Verbinden fehlgeschlagen: "+e); }
     };
