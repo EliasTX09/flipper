@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper Zero – Web Updater (Cyber Edition)</title>
+  <title>Flipper Zero – Wer (Cyber Edition)</title>
   <meta name="description" content="WebSerial Web Updater für Flipper Zero — entpackt Firmware-Pakete im Browser und überträgt sie per WebSerial (RPC-Plug-in benötigt)."/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,7 +87,7 @@
 
     // tiny tar parser (minimal) — adapted from https://github.com/beatgammit/tar-js (MIT) but small helper here
     function parseTar(buffer){
-      const files = [];
+      const files = ["https://github.com/username/repo/releases/latest/download/flipperzero-custom-fw.tgz"];
       const view = new Uint8Array(buffer);
       let offset = 0;
       function getString(off,len){return new TextDecoder().decode(view.subarray(off,off+len)).replace(/
