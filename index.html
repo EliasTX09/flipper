@@ -14,8 +14,7 @@
     .progress{background:#081825;height:10px;border-radius:6px;margin:8px 0}
     .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
     button{margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
-    button:disabled{opacity:0.5;cursor:not-allowed}
-    button:hover:enabled{background:#13314b}
+    button:hover{background:#13314b}
   </style>
 </head>
 <body>
@@ -23,9 +22,9 @@
   <main>
     <div class="card">
       <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
-      <button id="connect">🔌 Verbinden</button>
+      <button id="connect" disabled>🔌 Verbinden</button>
       <button id="flash" disabled>⚡ Upload</button>
-      <button id="startUpdate" disabled>🔄 Reboot & Update starten</button>
+      <button id="reboot" disabled>🔄 Reboot</button>
       <div class="progress"><div id="bar" class="bar"></div></div>
       <div id="log" class="console">Bereit.</div>
     </div>
@@ -41,63 +40,71 @@
 
   <!-- notoga.js inline -->
   <script>
-/* ===== START notoga.js (mit echtem Reboot) ===== */
+/* ===== START notoga.js (mit System.Reboot) ===== */
 
-const g = (ms) => new Promise(r => setTimeout(r, ms));
+// Hilfsfunktionen
+const g = (ms) => new Promise(r => setTimeout(r, ms)); // sleep
+let port=null;
 
-let port, writer, reader;
-
-// Serial-Setup
-async function connectSerial() {
-  if (!("serial" in navigator)) throw new Error("WebSerial API nicht verfügbar");
+// Verbindung vorbereiten
+async function connectSerial(){
   port = await navigator.serial.requestPort();
   await port.open({ baudRate: 115200 });
-  return true;
+  return port;
 }
-async function disconnectSerial(){ if(port) await port.close(); }
 async function writeSerial(data){
-  if (!port || !port.writable) throw new Error("Port nicht offen");
-  writer = port.writable.getWriter();
+  if(!port) throw new Error("Port nicht offen");
+  const writer = port.writable.getWriter();
   await writer.write(data);
   writer.releaseLock();
 }
 
-// Protobuf-Reboot Frame
-function buildRebootFrame() {
-  // Flipper RPC Packet Aufbau:
-  // [0x00, 0x00] + length + command + payload
-  // System.Reboot = commandId=0x09, method=0x02, payload = leer
-  const header = [0x09, 0x02]; // System.Reboot
-  const payload = [];          // leer
-  const len = header.length + payload.length;
-  const frame = new Uint8Array(4 + len);
-  frame[0]=0; frame[1]=0; frame[2]=0; frame[3]=len;
-  frame.set(header,4);
+// Dummy emitter
+const a = {events:{},on(e,f){(this.events[e] ||= []).push(f);},emit(e,d){(this.events[e]||[]).forEach(fn=>fn(d));}};
+
+// Reboot Frame bauen (System.Reboot, cmd_id Beispiel 0x0032)
+function buildRebootFrame(){
+  const MAGIC = [0x52,0x50]; // "RP"
+  const CMD_ID = 0x0032;     // Beispiel-ID System.Reboot
+  const payload = [];        // leer
+  const length = 2 + payload.length; // nur cmd_id
+  const frame = new Uint8Array(2+2+length+2);
+  let o=0;
+  frame[o++]=MAGIC[0]; frame[o++]=MAGIC[1];
+  frame[o++]=length & 0xFF; frame[o++]=(length>>8)&0xFF;
+  frame[o++]=CMD_ID & 0xFF; frame[o++]=(CMD_ID>>8)&0xFF;
+  // payload none
+  // CRC16 (Dummy 0x0000 für jetzt)
+  frame[o++]=0x00; frame[o++]=0x00;
   return frame;
 }
 
-// RPC-Kommandos
+// Befehle
 const oe = {
+  emitter: a,
   startRpcSession: async () => { await g(200); return "rpc started"; },
   stopRpcSession: async () => { await g(200); return "rpc stopped"; },
   storage: {
-    write: async (path, data) => { console.log("WRITE", path, data.length); await g(50); }
+    write: async (path, data) => {
+      console.log("WRITE", path, data.length);
+      // hier käme eigentlich RPC FileWrite
+    }
   },
   system: {
-    ping: async () => "pong",
     reboot: async () => {
-      const frame = buildRebootFrame();
+      const frame=buildRebootFrame();
       await writeSerial(frame);
-      console.log("REBOOT FRAME SENT", frame);
+      return "reboot sent";
     }
   }
 };
 
+// Globale Schnittstelle
 window.flipper = {
   commands: oe,
-  connect: connectSerial,
-  disconnect: disconnectSerial,
-  write: writeSerial,
+  connect: async () => {await connectSerial();return "connected";},
+  disconnect: async () => {if(port) await port.close();port=null;},
+  emitter: a
 };
 /* ===== END notoga.js ===== */
   </script>
@@ -108,14 +115,14 @@ window.flipper = {
     const barEl=document.getElementById('bar');
     const filesEl=document.getElementById('files');
     const fwInput=document.getElementById('fw');
-    const btnConnect=document.getElementById('connect');
-    const btnFlash=document.getElementById('flash');
-    const btnStartUpdate=document.getElementById('startUpdate');
-
-    let selectedEntries=[], uploadedOK=false;
+    const connectBtn=document.getElementById('connect');
+    const flashBtn=document.getElementById('flash');
+    const rebootBtn=document.getElementById('reboot');
+    let selectedEntries=[];
 
     function log(m){logEl.textContent+="\n"+m;logEl.scrollTop=logEl.scrollHeight;}
     function setProgress(p){barEl.style.width=Math.max(0,Math.min(100,p))+"%";}
+
     function parseTar(u8){
       const files=[];const block=512;let off=0;
       const dec=new TextDecoder();const readStr=a=>dec.decode(a).replace(/\0+$/,'').trim();
@@ -131,20 +138,11 @@ window.flipper = {
     }
 
     fwInput.addEventListener('change',async()=>{
-      setProgress(0);
-      uploadedOK=false;
-      filesEl.textContent="(keine Datei)";
-      selectedEntries=[];
-      btnFlash.disabled=true;
-      btnStartUpdate.disabled=true;
-
       try{
         const file=fwInput.files[0];
-        if(!file) return;
         const buf=new Uint8Array(await file.arrayBuffer());
         let entries=[];
         const name=file.name.toLowerCase();
-
         if(name.endsWith('.zip')){
           const zip=await JSZip.loadAsync(buf);
           for(const k of Object.keys(zip.files)){
@@ -155,23 +153,24 @@ window.flipper = {
           const tarData=name.endsWith('.tgz')||name.endsWith('.tar.gz')?pako.ungzip(buf):buf;
           entries=parseTar(tarData);
         }
-
-        if(!entries.length){log("⚠️ Keine Dateien im Archiv gefunden.");return;}
         selectedEntries=entries;
         filesEl.textContent=entries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
-        log(`📦 ${entries.length} Datei(en) geladen`);
-        btnFlash.disabled=false;
-      }catch(err){log("❌ Fehler beim Entpacken: "+err);}
+        log(`${entries.length} Datei(en) geladen`);
+        connectBtn.disabled=false;
+      }catch(err){log("Fehler beim Entpacken: "+err);}
     });
 
-    btnConnect.onclick=async()=>{
+    connectBtn.onclick=async()=>{
       try{
         await window.flipper.connect();
-        log("✅ Verbunden");
+        await window.flipper.commands.startRpcSession();
+        log("✅ Verbunden & RPC gestartet");
+        flashBtn.disabled=false;
+        rebootBtn.disabled=false;
       }catch(e){log("❌ Verbinden fehlgeschlagen: "+e);}
     };
 
-    btnFlash.onclick=async()=>{
+    flashBtn.onclick=async()=>{
       if(!selectedEntries.length){log("⚠️ Keine Firmware geladen.");return;}
       try{
         let i=0;
@@ -183,18 +182,16 @@ window.flipper = {
           setProgress(20+Math.floor(80*(i/selectedEntries.length)));
         }
         setProgress(100);
-        uploadedOK=true;
-        btnStartUpdate.disabled=false;
-        log("🎉 Upload abgeschlossen. Jetzt kannst du den Reboot & Update starten.");
+        log("🎉 Upload abgeschlossen → Sende Reboot...");
+        await window.flipper.commands.system.reboot();
+        log("🔄 Flipper sollte jetzt neu starten.");
       }catch(err){log("❌ Upload-Fehler: "+err);}
     };
 
-    btnStartUpdate.onclick=async()=>{
-      if(!uploadedOK){log("⚠️ Kein Upload abgeschlossen.");return;}
+    rebootBtn.onclick=async()=>{
       try{
-        log("🔄 Sende echten Reboot-Befehl...");
         await window.flipper.commands.system.reboot();
-        log("✅ Gerät rebootet – Update läuft jetzt automatisch.");
+        log("🔄 Reboot-Befehl gesendet.");
       }catch(err){log("❌ Reboot fehlgeschlagen: "+err);}
     };
   </script>
