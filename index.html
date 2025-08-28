@@ -29,27 +29,13 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 
-  <!-- Minimal Serial-Layer: definiert connect() -->
-  <script>
-    async function connect() {
-      const port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
+  <!-- Wrapper: mappt notoga.js-Exporte ins window.flipper -->
+  <script type="module">
+    import { commands, connect, disconnect, read, write } from "https://eliastx09.github.io/flipper/notoga.js";
 
-      const encoder = new TextEncoderStream();
-      const decoder = new TextDecoderStream();
-      encoder.readable.pipeTo(port.writable);
-      port.readable.pipeTo(decoder.writable);
-
-      window.serialWriter = encoder.writable.getWriter();
-      window.serialReader = decoder.readable.getReader();
-
-      console.log("🔌 Serial verbunden");
-      return port;
-    }
+    window.flipper = { commands, connect, disconnect, read, write };
+    console.log("✅ Flipper RPC geladen", window.flipper);
   </script>
-
-  <!-- dein RPC Client -->
-  <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/notoga.js"></script>
 </head>
 <body>
   <header>
@@ -83,13 +69,13 @@
     const fwInput = document.getElementById('fw');
     let selectedEntries = [];
 
-    const log = (m) => { logEl.textContent += "\\n" + m; logEl.scrollTop = logEl.scrollHeight; };
+    const log = (m) => { logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; };
     const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
 
     function parseTar(u8){
       const files = []; const block = 512; let off = 0;
       const dec = new TextDecoder();
-      const readStr = (a)=>dec.decode(a).replace(/\\0+$/, '').trim();
+      const readStr = (a)=>dec.decode(a).replace(/\0+$/, '').trim();
       while(off+block <= u8.length){
         const h=u8.subarray(off,off+block); const name=readStr(h.subarray(0,100));
         if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
@@ -123,15 +109,15 @@
         const file=fwInput.files[0]; selectedEntries=await readArchive(file);
         if(!selectedEntries.length){ filesEl.textContent='(leer)'; setProgress(0); return; }
         selectedEntries.sort((a,b)=>a.path.localeCompare(b.path));
-        filesEl.textContent=selectedEntries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\\n');
+        filesEl.textContent=selectedEntries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
         log(`📦 ${selectedEntries.length} Dateien geladen`); setProgress(15);
       }catch(err){ filesEl.textContent='Fehler: '+err; log('❌ Entpack-Fehler: '+err.message); setProgress(0);}
     });
 
     document.getElementById('connect').onclick = async () => {
       try{
-        await connect(); // unser connect()
-        await commands.startRpcSession(); // aus notoga.js
+        await flipper.connect(); 
+        await flipper.commands.startRpcSession(); 
         log("✅ RPC-Session gestartet");
       }catch(e){ log("❌ Verbinden fehlgeschlagen: "+e); }
     };
@@ -143,7 +129,7 @@
         for(const e of selectedEntries){
           i++;
           log(`➡️ Upload ${e.path} (${e.data.length} Bytes)`);
-          await commands.storage.write("/ext/update/"+e.path, e.data);
+          await flipper.commands.storage.write("/ext/update/"+e.path, e.data);
           log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
           setProgress(20+Math.floor(80*(i/selectedEntries.length)));
         }
