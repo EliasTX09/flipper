@@ -3,31 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper WebFkoilasher</title>
+  <title>Flipper WebFlasher</title>
   <style>
-    body{margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
-    header{text-align:center;padding:20px}
-    h1{color:#00e6ff}
-    main{display:flex;gap:16px;max-width:900px;margin:20px auto;flex-wrap:wrap}
-    .card{background:#0b182a;padding:16px;border-radius:8px;flex:1;min-width:300px}
-    .console,.filelist{background:#020612;padding:8px;border-radius:6px;height:180px;overflow:auto;white-space:pre-wrap}
-    .progress{background:#081825;height:10px;border-radius:6px;margin:8px 0}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
-    button{margin:4px;padding:8px 12px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
-    button:hover{background:#13314b}
-    button:disabled{opacity:.4;cursor:not-allowed}
-    .pill{background:#052033;padding:4px 8px;border-radius:4px;margin-left:6px;font-size:.9em}
+    body {margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
+    header {text-align:center;padding:20px}
+    h1 {color:#00e6ff}
+    main {display:flex;gap:16px;max-width:1000px;margin:20px auto;flex-wrap:wrap}
+    .card {background:#0b182a;padding:16px;border-radius:8px;flex:1;min-width:300px}
+    .console,.filelist {background:#020612;padding:8px;border-radius:6px;height:180px;overflow:auto;white-space:pre-wrap}
+    .progress {background:#081825;height:10px;border-radius:6px;margin:8px 0}
+    .bar {height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
+    button {margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
+    button:hover {background:#13314b}
+    button:disabled {background:#333;color:#777;cursor:not-allowed}
   </style>
 </head>
 <body>
   <header><h1>Flipper WebFlasher</h1></header>
   <main>
     <div class="card">
-      <input type="file" id="fw" accept=".zip,.tgz,.tar.gz,.tar">
-      <span id="fwInfo" class="pill">keine Datei</span><br>
+      <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
       <button id="connect" disabled>🔌 Verbinden</button>
-      <button id="flash" disabled>⚡ Upload</button>
-      <button id="update" disabled>⬆️ Update starten</button>
+      <button id="flash" disabled>⚡ Update hochladen</button>
       <button id="reboot" disabled>🔄 Reboot</button>
       <div class="progress"><div id="bar" class="bar"></div></div>
       <div id="log" class="console">Bereit.</div>
@@ -41,71 +38,24 @@
   <!-- externe libs -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <!-- dein generiertes flipper-rpc -->
+  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/flipper-rpc.js"></script>
 
-  <!-- notoga.js (bereinigt + minimal) -->
-  <script>
-  const g = (ms) => new Promise(r => setTimeout(r, ms)); // sleep
-  const b = async () => {
-    if (!("serial" in navigator)) throw new Error("WebSerial API nicht verfügbar");
-    let port;
-    return {
-      connect: async () => {
-        port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
-        return {
-          write: async (type, data) => {
-            const writer = port.writable.getWriter();
-            await writer.write(typeof data === "string" ? new TextEncoder().encode(data) : data);
-            writer.releaseLock();
-          },
-          read: async () => {
-            const reader = port.readable.getReader();
-            const { value } = await reader.read();
-            reader.releaseLock();
-            return value;
-          },
-          disconnect: async () => port.close(),
-          closeReader: async () => {}
-        };
-      }
-    };
-  };
-
-  const a = { events:{}, on(e,f){(this.events[e]??=[]).push(f)}, emit(e,d){(this.events[e]||[]).forEach(fn=>fn(d))} };
-
-  const oe = {
-    emitter:a,
-    startRpcSession:async()=>{await g(200);return"rpc started"},
-    stopRpcSession:async()=>{await g(200);return"rpc stopped"},
-    storage:{write:async(p,d)=>{console.log("WRITE",p,d.length)}},
-    system:{ping:async()=>"pong", reboot:async()=>{console.log("RPC System.Reboot");}}
-  };
-
-  let d=null;
-  const re = async()=>{if(!d)d=await b();return(await d).connect()};
-  const ie = async()=>{if(!d)throw new Error("Serial not available");return(await d).disconnect()};
-  const se = async(t,i)=>{if(!d)throw new Error("Serial not available");return(await d).write(t,i)};
-  const ae = async t=>{if(!d)throw new Error("Serial not available");return(await d).read(t)};
-  const ue = async()=>{if(!d)throw new Error("Serial not available");return(await d).closeReader()};
-
-  window.flipper={commands:oe,connect:re,disconnect:ie,read:ae,write:se,closeReader:ue,emitter:a};
-  </script>
-
-  <!-- UI-Logik -->
   <script>
     const logEl=document.getElementById('log');
     const barEl=document.getElementById('bar');
     const filesEl=document.getElementById('files');
     const fwInput=document.getElementById('fw');
-    const fwInfo=document.getElementById('fwInfo');
     const btnConnect=document.getElementById('connect');
     const btnFlash=document.getElementById('flash');
-    const btnUpdate=document.getElementById('update');
     const btnReboot=document.getElementById('reboot');
     let selectedEntries=[];
+    let port, writer, reader;
 
     function log(m){logEl.textContent+="\n"+m;logEl.scrollTop=logEl.scrollHeight;}
     function setProgress(p){barEl.style.width=Math.max(0,Math.min(100,p))+"%";}
+
+    // TAR Parser
     function parseTar(u8){
       const files=[];const block=512;let off=0;
       const dec=new TextDecoder();const readStr=a=>dec.decode(a).replace(/\0+$/,'').trim();
@@ -120,16 +70,14 @@
       return files;
     }
 
+    // Datei auswählen
     fwInput.addEventListener('change',async()=>{
-      filesEl.textContent="(keine Datei)";
-      selectedEntries=[];
-      if(!fwInput.files||!fwInput.files.length){fwInfo.textContent="keine Datei";btnConnect.disabled=true;return;}
-      const file=fwInput.files[0];
-      fwInfo.textContent=file.name+" • "+(file.size/1024).toFixed(1)+" KB";
       try{
+        const file=fwInput.files[0];
+        if(!file) return;
         const buf=new Uint8Array(await file.arrayBuffer());
-        const name=file.name.toLowerCase();
         let entries=[];
+        const name=file.name.toLowerCase();
         if(name.endsWith('.zip')){
           const zip=await JSZip.loadAsync(buf);
           for(const k of Object.keys(zip.files)){
@@ -141,23 +89,35 @@
           entries=parseTar(tarData);
         }
         selectedEntries=entries;
-        filesEl.textContent=entries.length?entries.map(e=>`${e.path} • ${e.data.length} bytes`).join("\n"):"(Archiv leer)";
+        filesEl.textContent=entries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
         log(`${entries.length} Datei(en) geladen`);
-        btnConnect.disabled=false;
-      }catch(err){fwInfo.textContent="Fehler";filesEl.textContent="❌ Fehler beim Entpacken: "+err;}
+        btnConnect.disabled=false; // erst jetzt darf man verbinden
+      }catch(err){log("Fehler beim Entpacken: "+err);}
     });
 
+    // Verbinden
     btnConnect.onclick=async()=>{
       try{
-        await window.flipper.connect();
-        await window.flipper.commands.startRpcSession();
-        log("✅ Verbunden & RPC gestartet");
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+        log("✅ Verbunden");
         btnFlash.disabled=false;
-        btnUpdate.disabled=false;
         btnReboot.disabled=false;
       }catch(e){log("❌ Verbinden fehlgeschlagen: "+e);}
     };
 
+    // Protobuf laden
+    const { Storage, System } = protobuf.roots.default.flipper;
+
+    // RPC send helper
+    async function sendRpc(msgType, payload){
+      const bytes = msgType.encode(payload).finish();
+      await writer.write(bytes);
+    }
+
+    // Flash (echte WriteRequest in Blöcken)
     btnFlash.onclick=async()=>{
       if(!selectedEntries.length){log("⚠️ Keine Firmware geladen.");return;}
       try{
@@ -165,25 +125,30 @@
         for(const e of selectedEntries){
           i++;
           log(`➡️ Upload ${e.path}`);
-          await window.flipper.commands.storage.write("/ext/update/"+e.path,e.data);
+          const chunkSize=512;
+          for(let off=0;off<e.data.length;off+=chunkSize){
+            const chunk=e.data.slice(off,off+chunkSize);
+            const req=Storage.WriteRequest.create({
+              path: "/ext/update/"+e.path,
+              data: chunk
+            });
+            await sendRpc(Storage.WriteRequest, req);
+            setProgress(Math.floor(100*(off/e.data.length)));
+          }
           log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
-          setProgress(20+Math.floor(80*(i/selectedEntries.length)));
-          await g(100); // künstliche Verzögerung
         }
         setProgress(100);
-        log("🎉 Upload abgeschlossen. (Update muss noch gestartet werden)");
+        log("🎉 Upload abgeschlossen. Gerät kann jetzt rebooten.");
       }catch(err){log("❌ Upload-Fehler: "+err);}
     };
 
-    btnUpdate.onclick=async()=>{
-      log("▶️ Update-RPC gesendet (hier echte Protobuf-Implementierung nötig)");
-    };
-
+    // Reboot
     btnReboot.onclick=async()=>{
       try{
-        await window.flipper.commands.system.reboot();
-        log("🔄 Reboot-Befehl gesendet");
-      }catch(e){log("❌ Reboot fehlgeschlagen: "+e);}
+        const req=System.RebootRequest.create({});
+        await sendRpc(System.RebootRequest, req);
+        log("🔄 Reboot-Befehl gesendet.");
+      }catch(err){log("❌ Reboot-Fehler: "+err);}
     };
   </script>
 </body>
