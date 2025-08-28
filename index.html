@@ -3,11 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Momentum‑Style WebFlasher (Self‑Contained)</title>
+  <title>Flipper WebFlasher (RPC)</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#06101d;--card:#0b182a;--neon:#00e6ff;--muted:#8db3c1}
-    *{box-sizing:border-box}
     body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff}
     header{padding:26px;text-align:center;border-bottom:1px solid rgba(0,230,255,.08)}
     h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:var(--neon);margin:0;font-size:26px}
@@ -29,20 +28,22 @@
   <!-- externe libs -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <!-- dein RPC Client -->
+  <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/notoga.js"></script>
 </head>
 <body>
   <header>
-    <h1>WebFlasher (Momentum‑Style)</h1>
+    <h1>Flipper WebFlasher (RPC)</h1>
   </header>
 
   <main>
     <section class="card">
-      <label for="fw">Firmware‑Paket wählen (.zip / .tgz)</label>
+      <label for="fw">Firmware-Paket wählen (.zip / .tgz)</label>
       <input id="fw" type="file" accept=".zip,.tgz,.tar.gz" />
 
       <div class="row">
         <button id="connect">🔌 Gerät verbinden</button>
-        <button id="flash">⚡ Flashen</button>
+        <button id="flash">⚡ Upload</button>
       </div>
 
       <div class="progress"><div id="bar" class="bar"></div></div>
@@ -62,20 +63,18 @@
     const fwInput = document.getElementById('fw');
     let selectedEntries = [];
 
-    function log(m){ logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; }
-    function setProgress(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
+    const log = (m) => { logEl.textContent += "\\n" + m; logEl.scrollTop = logEl.scrollHeight; };
+    const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
 
-    // .tar parser minimal
+    // Minimal TAR Parser
     function parseTar(u8){
-      const files = [];
-      const block=512; let off=0; const dec=new TextDecoder();
-      function readStr(a){ return dec.decode(a).replace(/\0+$/, '').trim(); }
-      while(off+block<=u8.length){
-        const h=u8.subarray(off,off+block);
-        const name=readStr(h.subarray(0,100));
+      const files = []; const block = 512; let off = 0;
+      const dec = new TextDecoder();
+      const readStr = (a)=>dec.decode(a).replace(/\\0+$/, '').trim();
+      while(off+block <= u8.length){
+        const h=u8.subarray(off,off+block); const name=readStr(h.subarray(0,100));
         if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
-        const size=parseInt(readStr(h.subarray(124,136)),8)||0;
-        off+=block;
+        const size=parseInt(readStr(h.subarray(124,136)),8)||0; off+=block;
         const data=u8.subarray(off,off+size);
         files.push({path:name,data:new Uint8Array(data)});
         off+=Math.ceil(size/block)*block;
@@ -87,16 +86,14 @@
       const name=file.name.toLowerCase();
       const buf=new Uint8Array(await file.arrayBuffer());
       if(name.endsWith('.zip')){
-        const zip=await JSZip.loadAsync(buf);
-        const out=[]; for(const k of Object.keys(zip.files)){
+        const zip=await JSZip.loadAsync(buf); const out=[];
+        for(const k of Object.keys(zip.files)){
           const e=zip.files[k]; if(e.dir) continue;
           const data=new Uint8Array(await e.async('uint8array'));
           out.push({path:k,data});
         } return out;
       }
-      if(name.endsWith('.tgz')||name.endsWith('.tar.gz')){
-        const ungz=pako.ungzip(buf); return parseTar(ungz);
-      }
+      if(name.endsWith('.tgz')||name.endsWith('.tar.gz')) return parseTar(pako.ungzip(buf));
       if(name.endsWith('.tar')) return parseTar(buf);
       throw new Error('Nicht unterstütztes Format');
     }
@@ -104,65 +101,37 @@
     fwInput.addEventListener('change', async()=>{
       filesEl.textContent='Lade...'; setProgress(5);
       try{
-        const file=fwInput.files[0];
-        selectedEntries=await readArchive(file);
-        if(!selectedEntries.length){filesEl.textContent='(leer)';setProgress(0);return;}
+        const file=fwInput.files[0]; selectedEntries=await readArchive(file);
+        if(!selectedEntries.length){ filesEl.textContent='(leer)'; setProgress(0); return; }
         selectedEntries.sort((a,b)=>a.path.localeCompare(b.path));
-        filesEl.textContent=selectedEntries.map(e=>`${e.path}  •  ${e.data.length} bytes`).join('\n');
-        log(`📦 ${selectedEntries.length} Dateien geladen`);
-        setProgress(15);
-      }catch(err){filesEl.textContent='Fehler: '+err;log('❌ Entpack-Fehler: '+err.message);setProgress(0);}
+        filesEl.textContent=selectedEntries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\\n');
+        log(`📦 ${selectedEntries.length} Dateien geladen`); setProgress(15);
+      }catch(err){ filesEl.textContent='Fehler: '+err; log('❌ Entpack-Fehler: '+err.message); setProgress(0);}
     });
 
-    let port,reader,writer;
-    async function connect(){
-      if(port) return port;
-      port=await navigator.serial.requestPort();
-      await port.open({baudRate:115200});
-      writer=port.writable.getWriter();
-      reader=port.readable.getReader();
-      log('✅ Verbunden mit Gerät');
-      return port;
-    }
-
-    document.getElementById('connect').addEventListener('click', async()=>{
-      try{await connect();}catch(e){log('❌ Verbinden fehlgeschlagen: '+e.message);}
-    });
-
-    async function sendFramed(path,u8){
-      const enc=new TextEncoder();
-      await writer.write(enc.encode(`FILE ${path} ${u8.length}\n`));
-      const chunk=4096; let sent=0;
-      while(sent<u8.length){
-        const end=Math.min(sent+chunk,u8.length);
-        await writer.write(u8.subarray(sent,end));
-        sent=end; setProgress(20+Math.floor(70*(sent/u8.length)));
-      }
-      await writer.write(enc.encode(`\nEOF\n`));
-      const dec=new TextDecoder(); let text='';
-      for(;;){
-        const {value,done}=await reader.read(); if(done) break;
-        if(value){ text+=dec.decode(value); if(/\b(OK|ERR)/.test(text)) break; }
-      }
-      if(!/\bOK/.test(text)) throw new Error('Gerät meldet Fehler: '+text.trim());
-    }
-
-    async function flashAll(){
-      if(!fwInput.files.length){log('⚠️ Bitte zuerst eine Firmware wählen.');return;}
-      if(!selectedEntries.length){log('⚠️ Paket leer.');return;}
+    document.getElementById('connect').onclick = async () => {
       try{
-        await connect();
+        await connect(); // aus notoga.js
+        await commands.startRpcSession();
+        log("✅ RPC-Session gestartet");
+      }catch(e){ log("❌ Verbinden fehlgeschlagen: "+e); }
+    };
+
+    document.getElementById('flash').onclick = async () => {
+      if(!selectedEntries.length){ log("⚠️ Keine Firmware geladen."); return; }
+      try{
         let i=0;
         for(const e of selectedEntries){
-          i++; log(`➡️ ${e.path} (${e.data.length} bytes)`);
-          await sendFramed(e.path,e.data);
+          i++;
+          log(`➡️ Upload ${e.path} (${e.data.length} Bytes)`);
+          await commands.storage.write("/ext/update/"+e.path, e.data);
           log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
+          setProgress(20+Math.floor(80*(i/selectedEntries.length)));
         }
-        setProgress(100); log('🎉 Flash abgeschlossen');
-      }catch(err){log('❌ Flash-Fehler: '+err.message);}
-    }
-
-    document.getElementById('flash').addEventListener('click',flashAll);
+        setProgress(100);
+        log("🎉 Upload abgeschlossen. Starte Update am Flipper manuell.");
+      }catch(err){ log("❌ Upload-Fehler: "+err.message); }
+    };
   </script>
 </body>
 </html>
