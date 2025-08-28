@@ -24,18 +24,6 @@
     .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
     @media (max-width:1000px){main{grid-template-columns:1fr}}
   </style>
-
-  <!-- externe libs -->
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-
-  <!-- Wrapper: mappt notoga.js-Exporte ins window.flipper -->
-  <script type="module">
-    import { commands, connect, disconnect, read, write } from "https://eliastx09.github.io/flipper/notoga.js";
-
-    window.flipper = { commands, connect, disconnect, read, write };
-    console.log("✅ Flipper RPC geladen", window.flipper);
-  </script>
 </head>
 <body>
   <header>
@@ -62,7 +50,16 @@
     </aside>
   </main>
 
-  <script>
+  <!-- externe libs -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
+  <!-- Hauptskript -->
+  <script type="module">
+    import { commands, connect, disconnect, read, write } from "https://eliastx09.github.io/flipper/notoga.js";
+
+    window.flipper = { commands, connect, disconnect, read, write };
+
     const logEl = document.getElementById('log');
     const barEl = document.getElementById('bar');
     const filesEl = document.getElementById('files');
@@ -116,8 +113,8 @@
 
     document.getElementById('connect').onclick = async () => {
       try{
-        await flipper.connect(); 
-        await flipper.commands.startRpcSession(); 
+        await flipper.connect();
+        await flipper.commands.startRpcSession();
         log("✅ RPC-Session gestartet");
       }catch(e){ log("❌ Verbinden fehlgeschlagen: "+e); }
     };
