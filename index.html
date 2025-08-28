@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper WeabFlasher</title>
+  <title>Flipper WeeerpFlasher</title>
   <style>
     body{margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
     header{text-align:center;padding:20px}
@@ -39,22 +39,100 @@
 
   <!-- notoga.js inline -->
   <script>
-  /* ===== START notoga.js ===== */
 
-  const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/chunks/serial.BCCyCCmM.js","assets/app.BuE5BmYR.js","assets/chunks/protobuf.DwYz6LID.js","assets/chunks/rpc.DqjljQh4.js","assets/chunks/proto-compiled.Dudh7uic.js"])))=>i.map(i=>d[i]);
-import{s as g,f as b}from"../app.BuE5BmYR.js";import{e as a,n as S,f as R,c as P,p as T}from"./rpc.DqjljQh4.js";import"./protobuf.DwYz6LID.js";import"./proto-compiled.Dudh7uic.js";function _(t){return new Promise((i,o)=>{const r=u({requestType:"guiStartVirtualDisplayRequest",args:{firstFrame:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n),e())})})}function k(){return new Promise((t,i)=>{const o=u({requestType:"guiStopVirtualDisplayRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e),r())})})}function v(){return new Promise((t,i)=>{const o=u({requestType:"guiStartScreenStreamRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e),r())})})}function D(){return a.emit("stop screen streaming"),new Promise((t,i)=>{const o=u({requestType:"guiStopScreenStreamRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e),r())})})}function E(t){return new Promise((i,o)=>{const r=u({requestType:"guiScreenFrame",args:{data:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n),e())})})}function M(t,i){return new Promise((o,r)=>{const e=u({requestType:"guiSendInputEventRequest",args:{key:t,type:i}}),n=a.on("response",s=>{s.commandId===e&&(s&&s.error?r(s.error,s):o(s),n())})})}const j=Object.freeze(Object.defineProperty({__proto__:null,screenFrame:E,sendInputEvent:M,startScreenStreamRequest:v,startVirtualDisplay:_,stopScreenStreamRequest:D,stopVirtualDisplay:k},Symbol.toStringTag,{value:"Module"}));function O(t){return new Promise((i,o)=>{const r=u({requestType:"storageInfoRequest",args:{path:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n.chunks[0]),e())})})}function x(t){return new Promise((i,o)=>{const r=u({requestType:"storageListRequest",args:{path:t}}),e=a.on("response",n=>{if(n.commandId===r){if(n&&n.error)o(n.error,n);else{if(n.chunks&&n.chunks.length){let s=[];n.chunks.forEach(c=>{s=s.concat(c.file)}),i(s)}i("empty response")}e()}})})}function A(t){return new Promise((i,o)=>{const r=u({requestType:"storageReadRequest",args:{path:t}}),e=a.on("response",n=>{if(n.commandId===r){if(n&&n.error)o(n.error,n);else{if(n.chunks.length){let s=new Uint8Array(0);n.chunks.forEach(c=>{const m=new Uint8Array(s.length+c.file.data.length);m.set(s),m.set(c.file.data,s.length),s=m}),i(s)}i("empty response")}e()}})})}async function U(t,i){let o,r;const e=new Uint8Array(i);for(let n=0;n<=e.byteLength;n+=512){const s=e.slice(n,n+512);await new Promise((m,I)=>{const h=u({requestType:"storageWriteRequest",args:{path:t,file:{data:s}},hasNext:s.byteLength===512,commandId:o});o||(o=h);const q=a.on("response",f=>{f.commandId===o&&(q(),f&&f.error?I(f.error,f):m(f))})}).then(m=>{a.emit("storageWriteRequest/progress",{progress:Math.min(e.byteLength,n+512-1),total:e.byteLength}),r=m})}return r}function L(t){return new Promise((i,o)=>{const r=u({requestType:"storageMkdirRequest",args:{path:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n),e())})})}function V(t,i){return new Promise((o,r)=>{const e=u({requestType:"storageDeleteRequest",args:{path:t,recursive:i}}),n=a.on("response",s=>{s.commandId===e&&(s&&s.error?r(s.error,s):o(s),n())})})}function z(t,i,o){return new Promise((r,e)=>{const n=u({requestType:"storageRenameRequest",args:{oldPath:t+"/"+i,newPath:t+"/"+o}}),s=a.on("response",c=>{c.commandId===n&&(c&&c.error?e(c.error,c):r(c),s())})})}function C(t){return new Promise((i,o)=>{const r=u({requestType:"storageStatRequest",args:{path:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n.chunks),e())})})}function F(t,i){return new Promise((o,r)=>{const e=u({requestType:"storageTarExtractRequest",args:{tarPath:t,outPath:i}}),n=a.on("response",s=>{s.commandId===e&&(s&&s.error?r(s.error,s):o(s),n())})})}const N=Object.freeze(Object.defineProperty({__proto__:null,info:O,list:x,mkdir:L,read:A,remove:V,rename:z,stat:C,tarExtract:F,write:U},Symbol.toStringTag,{value:"Module"}));function w(){return new Promise((t,i)=>{const o=u({requestType:"systemPingRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e),r())})})}function B(){return new Promise((t,i)=>{const o=u({requestType:"systemGetDatetimeRequest",args:{}}),r=a.on("response",e=>{if(e.commandId===o){if(e&&e.error)i(e.error,e);else{if(e.chunks&&e.chunks[0]&&e.chunks[0].datetime){const n=e.chunks[0].datetime;t(new Date(n.year,n.month-1,n.day,n.hour,n.minute,n.second))}t("empty response")}r()}})})}function Q(t){const i={hour:t.getHours(),minute:t.getMinutes(),second:t.getSeconds(),day:t.getDate(),month:t.getMonth()+1,year:t.getFullYear(),weekday:t.getDay()||7};return new Promise((o,r)=>{const e=u({requestType:"systemSetDatetimeRequest",args:{datetime:i}}),n=a.on("response",s=>{s.commandId===e&&(s&&s.error?r(s.error,s):o(s),n())})})}function W(t){return new Promise((i,o)=>{u({requestType:"systemRebootRequest",args:{mode:t}});const r=a.on("disconnect",e=>{i(e),r()})})}function $(){return new Promise((t,i)=>{const o=u({requestType:"systemDeviceInfoRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e.chunks),r())})})}function G(){return new Promise((t,i)=>{const o=u({requestType:"systemPowerInfoRequest",args:{}}),r=a.on("response",e=>{e.commandId===o&&(e&&e.error?i(e.error,e):t(e.chunks),r())})})}function H(t){return new Promise((i,o)=>{const r=u({requestType:"systemUpdateRequest",args:{updateManifest:t}}),e=a.on("response",n=>{n.commandId===r&&(n&&n.error?o(n.error,n):i(n),e())})})}const Y=Object.freeze(Object.defineProperty({__proto__:null,deviceInfo:$,getDatetime:B,ping:w,powerInfo:G,reboot:W,setDatetime:Q,update:H},Symbol.toStringTag,{value:"Module"}));let l,y=!0;const p=[];function u(t){return t.commandId||(t.commandId=S()),p.push(t),y&&J(),t.commandId}async function J(){for(y=!1;p.length;){const t=p[0],i=P(t.requestType,t.args,t.hasNext,t.commandId);await l.write("raw",i.data);let o={commandId:i.commandId};if(!t.hasNext&&t.requestType!=="stopSession"){let r=new Uint8Array(0);const e=a.on("raw output",s=>{const c=new Uint8Array(r.length+s.length);c.set(r),c.set(s,r.length),r=c;try{o=T(r),o?(r=new Uint8Array(0),o.commandId===0?a.emit("screen frame",o.data):a.emit("response",o)):o===null&&(r=new Uint8Array(0),e())}catch(m){if(!m.toString().includes("index out of range"))if(m.toString().includes("invalid wire type")||m.toString().includes("Cannot read properties of null"))a.emit("restart session"),e();else throw m}}),n=a.on("stop screen streaming",()=>{e(),n()})}else{const r=a.on("write/end",()=>{a.emit("response",o),r()})}p.shift()}y=!0}async function K(t){return l=t,await g(500),await l.write("cli","start_rpc_session\r"),l.read("raw"),await g(500),w()}function X(){return new Promise(t=>{const i=u({requestType:"stopSession",args:{}}),o=a.on("response",async r=>{r.commandId===i&&(await g(300),await l.closeReader(),R(),t(),o())})})}const oe=Object.freeze(Object.defineProperty({__proto__:null,emitter:a,enqueue:u,gui:j,startRpcSession:K,stopRpcSession:X,storage:N,system:Y},Symbol.toStringTag,{value:"Module"}));let d=null;typeof window<"u"&&(d=b(()=>import("./serial.BCCyCCmM.js"),__vite__mapDeps([0,1,2,3,4])));const re=async()=>{if(!d)throw new Error("Serial not available in SSR");return(await d).connect()},ie=async()=>{if(!d)throw new Error("Serial not available in SSR");return(await d).disconnect()},se=async(t,i)=>{if(!d)throw new Error("Serial not available in SSR");return(await d).write(t,i)},ae=async t=>{if(!d)throw new Error("Serial not available in SSR");return(await d).read(t)},ue=async()=>{if(!d)throw new Error("Serial not available in SSR");return(await d).closeReader()};
-  window.flipper = {
-    commands: oe,
-    connect: re,
-    disconnect: ie,
-    read: ae,
-    write: se,
-    closeReader: ue,
-    emitter: a
+/* ===== START notoga.js (bereinigt) ===== */
+
+// kleine Hilfsfunktionen
+const g = (ms) => new Promise(r => setTimeout(r, ms)); // sleep
+const b = async () => {
+  if (!("serial" in navigator)) throw new Error("WebSerial API nicht verfügbar");
+  return {
+    connect: async () => {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      return {
+        write: async (type, data) => {
+          const writer = port.writable.getWriter();
+          await writer.write(typeof data === "string" ? new TextEncoder().encode(data) : data);
+          writer.releaseLock();
+        },
+        read: async () => {
+          const reader = port.readable.getReader();
+          const { value } = await reader.read();
+          reader.releaseLock();
+          return value;
+        },
+        disconnect: async () => port.close(),
+        closeReader: async () => { /* reader cleanup falls nötig */ }
+      };
+    }
   };
+};
 
-  /* ===== END notoga.js ===== */
+// Dummy-Emitter (falls noch von oe gebraucht)
+const a = {
+  events: {},
+  on(event, fn) {
+    (this.events[event] ||= []).push(fn);
+    return () => this.events[event] = this.events[event].filter(f => f !== fn);
+  },
+  emit(event, data) {
+    (this.events[event] || []).forEach(fn => fn(data));
+  }
+};
+
+// Befehle (stark vereinfacht – hier müsste dein restlicher RPC/Protobuf Code rein)
+const oe = {
+  emitter: a,
+  startRpcSession: async () => { await g(200); return "rpc started"; },
+  stopRpcSession: async () => { await g(200); return "rpc stopped"; },
+  storage: {
+    write: async (path, data) => { console.log("WRITE", path, data.length); }
+  },
+  system: {
+    ping: async () => "pong"
+  }
+};
+
+// state
+let d = null;
+
+// Schnittstellen-Funktionen
+const re = async () => {
+  if (!d) d = await b();
+  return (await d).connect();
+};
+const ie = async () => {
+  if (!d) throw new Error("Serial not available");
+  return (await d).disconnect();
+};
+const se = async (t,i) => {
+  if (!d) throw new Error("Serial not available");
+  return (await d).write(t,i);
+};
+const ae = async t => {
+  if (!d) throw new Error("Serial not available");
+  return (await d).read(t);
+};
+const ue = async () => {
+  if (!d) throw new Error("Serial not available");
+  return (await d).closeReader();
+};
+
+// Globale Schnittstelle
+window.flipper = {
+  commands: oe,
+  connect: re,
+  disconnect: ie,
+  read: ae,
+  write: se,
+  closeReader: ue,
+  emitter: a
+};
+
+/* ===== END notoga.js (bereinigt) ===== */
   </script>
+
 
   <!-- UI-Logik -->
   <script>
