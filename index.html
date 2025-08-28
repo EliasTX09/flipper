@@ -4,186 +4,141 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flipper WebFlasher</title>
+  <!-- Styles (Momentum-Style) -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#06101d;--card:#0b182a;--neon:#00e6ff;--muted:#8db3c1}
-    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff}
-    header{padding:22px;text-align:center;border-bottom:1px solid rgba(0,230,255,.08)}
-    h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:var(--neon);margin:0;font-size:26px}
-    main{max-width:1000px;margin:28px auto;padding:16px;display:grid;grid-template-columns:1fr 360px;gap:16px}
-    .card{background:linear-gradient(180deg,rgba(10,20,35,.95),rgba(5,10,20,.9));padding:18px;border-radius:14px;border:1px solid rgba(0,230,255,.1);box-shadow:0 0 16px rgba(0,230,255,.08)}
-    label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
-    input[type=file]{width:100%;padding:10px;border-radius:10px;border:1px dashed rgba(0,230,255,.2);background:transparent;color:inherit;cursor:pointer}
-    button{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.06em;padding:11px 14px;border-radius:10px;border:1px solid rgba(0,230,255,.2);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer;transition:box-shadow .15s}
-    button:hover{box-shadow:0 0 10px var(--neon)}
-    .row{display:flex;gap:10px;margin-top:12px}
-    .row>button{flex:1}
-    .console{height:230px;overflow:auto;padding:10px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,.1);font-size:13px;line-height:1.4;white-space:pre-wrap}
-    .filelist{height:230px;overflow:auto;padding:10px;border-radius:10px;background:#031126;border:1px solid rgba(0,230,255,.06);font-size:13px}
-    .progress{height:12px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,.15);margin:12px 0}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
-    .badge{font-size:11px;color:#fff;background:#13314b;border:1px solid rgba(0,230,255,.2);padding:4px 8px;border-radius:999px;display:inline-block;margin-bottom:8px}
-    @media (max-width:1000px){main{grid-template-columns:1fr}}
+    /* (Dein CSS wie zuvor, verkürzt hier im Beispiel..) */
+    body{margin:0;padding:0;font-family:"JetBrains Mono", monospace;background:#071423;color:#e4f7ff}
+    header{text-align:center;padding:20px}
+    h1{font-family:Orbitron, sans-serif;color:#00e6ff}
+    main{display:flex;gap:16px;max-width:800px;margin:20px auto}
+    .card{background:#0b182a;padding:16px;border-radius:8px;flex:1}
+    button{margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
+    button:hover{background:#13314b}
+    .console, .filelist{background:#020612;padding:8px;border-radius:4px;height:180px;overflow:auto}
+    .progress{background:#081825;height:10px;border-radius:999px;margin:8px 0}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Flipper WebFlasher</h1>
-  </header>
-
+  <header><h1>Flipper WebFlasher</h1></header>
   <main>
-    <section class="card">
-      <span id="status" class="badge">Modul: lädt…</span>
-      <label for="fw">Firmware-Paket wählen (.zip / .tgz)</label>
-      <input id="fw" type="file" accept=".zip,.tgz,.tar.gz" />
-
-      <div class="row">
-        <button id="connect">🔌 Verbinden</button>
-        <button id="flash">⚡ Upload</button>
-      </div>
-
+    <div class="card">
+      <div><span id="status">Modul: lädt…</span></div>
+      <label>Firmware (.zip/.tgz)</label><br>
+      <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
+      <button id="connect">Verbinden</button>
+      <button id="flash">Upload</button>
       <div class="progress"><div id="bar" class="bar"></div></div>
       <div id="log" class="console">Bereit.</div>
-    </section>
-
-    <aside class="card">
-      <h3 style="margin:0 0 8px 0">Paketinhalt</h3>
-      <div id="files" class="filelist">(keine Datei geladen)</div>
-    </aside>
+    </div>
+    <div class="card">
+      <h3>Inhalt:</h3>
+      <div id="files" class="filelist">(keine Datei)</div>
+    </div>
   </main>
 
-  <!-- externe libs (klassisch, global) -->
+  <!-- externe libs -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 
-  <!-- UI & Logik: läuft IMMER, bindet Buttons, auch wenn das Modul später/nie lädt -->
   <script>
-    // --- UI state ---
-    const logEl   = document.getElementById('log');
-    const barEl   = document.getElementById('bar');
-    const filesEl = document.getElementById('files');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const barEl = document.getElementById('bar');
     const fwInput = document.getElementById('fw');
-    const statusEl= document.getElementById('status');
+    const filesEl = document.getElementById('files');
+    document.getElementById('connect').onclick = async () => {
+      if (!window.flipper) return log('Modul nicht geladen. Siehe oben.');
+      try {
+        await flipper.connect();
+        await flipper.commands.startRpcSession();
+        log('RPC-Session gestartet');
+      } catch (e) {
+        log('Fehler beim Verbinden: ' + e);
+      }
+    };
+    document.getElementById('flash').onclick = async () => {
+      if (!window.flipper) return log('Modul nicht geladen.');
+      if (!selectedEntries || !selectedEntries.length) return log('Keine Datei geladen.');
+      try {
+        let i = 0;
+        for (const e of selectedEntries) {
+          i++;
+          log(`Upload ${e.path}`);
+          await flipper.commands.storage.write('/ext/update/' + e.path, e.data);
+          setProgress(20 + Math.floor(80 * (i / selectedEntries.length)));
+        }
+        log('Upload komplett');
+      } catch (err) {
+        log('Fehler beim Upload: ' + err);
+      }
+    };
 
     let selectedEntries = [];
-    let flipper = null;            // wird vom Modul gesetzt
-    let flipperError = null;       // Fehler vom Modul-Import (falls)
-    let moduleReady = false;
+    function log(m) { logEl.textContent += '\n' + m; logEl.scrollTop = logEl.scrollHeight; }
+    function setProgress(p) { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
 
-    const log = (m) => { logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; };
-    const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
+    fwInput.addEventListener('change', async () => {
+      try {
+        const file = fwInput.files[0];
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let entries = [];
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.zip')) {
+          const zip = await JSZip.loadAsync(buf);
+          for (const k of Object.keys(zip.files)) {
+            const e = zip.files[k]; if (e.dir) continue;
+            entries.push({ path: k, data: new Uint8Array(await e.async('uint8array')) });
+          }
+        } else {
+          const tarData = name.endsWith('.tgz') || name.endsWith('.tar.gz') ? pako.ungzip(buf) : buf;
+          entries = parseTar(tarData);
+        }
+        selectedEntries = entries;
+        filesEl.textContent = entries.map(e => `${e.path} • ${e.data.length} bytes`).join('\n');
+        log(`${entries.length} Datei(en) geladen`);
+      } catch (err) {
+        log('Entpack-Fehler: ' + err);
+      }
+    });
 
-    // --- kleines TAR-Parsing ---
-    function parseTar(u8){
-      const files=[]; const block=512; let off=0;
-      const dec=new TextDecoder();
-      const readStr=(a)=>dec.decode(a).replace(/\0+$/,'').trim();
-      while(off+block<=u8.length){
-        const h=u8.subarray(off,off+block); const name=readStr(h.subarray(0,100));
-        if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
-        const size=parseInt(readStr(h.subarray(124,136)),8)||0; off+=block;
-        const data=u8.subarray(off,off+size);
-        files.push({path:name,data:new Uint8Array(data)});
-        off+=Math.ceil(size/block)*block;
+    function parseTar(u8) {
+      const files = [];
+      const block = 512;
+      const dec = new TextDecoder();
+      const readStr = a => dec.decode(a).replace(/\0+$/, '').trim();
+      for (let off = 0; off + block <= u8.length; ) {
+        const header = u8.subarray(off, off + block);
+        const name = readStr(header.subarray(0, 100));
+        if (!name) { off += block; continue; }
+        const size = parseInt(readStr(header.subarray(124, 136)), 8) || 0;
+        off += block;
+        const data = u8.subarray(off, off + size);
+        files.push({ path: name, data: new Uint8Array(data) });
+        off += Math.ceil(size / block) * block;
       }
       return files;
     }
 
-    async function readArchive(file){
-      const name=file?.name?.toLowerCase() || "";
-      if(!file) throw new Error("keine Datei gewählt");
-      const buf=new Uint8Array(await file.arrayBuffer());
-      if(name.endsWith('.zip')){
-        const zip=await window.JSZip.loadAsync(buf); const out=[];
-        for(const k of Object.keys(zip.files)){
-          const e=zip.files[k]; if(e.dir) continue;
-          const data=new Uint8Array(await e.async('uint8array'));
-          out.push({path:k,data});
-        } return out;
-      }
-      if(name.endsWith('.tgz')||name.endsWith('.tar.gz')) return parseTar(window.pako.ungzip(buf));
-      if(name.endsWith('.tar')) return parseTar(buf);
-      throw new Error('Nicht unterstütztes Format');
-    }
-
-    // Datei wählen
-    fwInput.addEventListener('change', async()=>{
-      filesEl.textContent='Lade...'; setProgress(5);
-      try{
-        const file=fwInput.files[0]; selectedEntries=await readArchive(file);
-        if(!selectedEntries.length){ filesEl.textContent='(leer)'; setProgress(0); return; }
-        selectedEntries.sort((a,b)=>a.path.localeCompare(b.path));
-        filesEl.textContent=selectedEntries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
-        log(`📦 ${selectedEntries.length} Dateien geladen`); setProgress(15);
-      }catch(err){ filesEl.textContent='Fehler: '+err; log('❌ Entpack-Fehler: '+(err && err.message || err)); setProgress(0);}
-    });
-
-    // Verbinden
-    document.getElementById('connect').addEventListener('click', async () => {
-      try{
-        if(!moduleReady || !flipper){
-          throw new Error("RPC-Modul nicht geladen" + (flipperError ? ` (${flipperError})` : ""));
-        }
-        await flipper.connect();
-        await flipper.commands.startRpcSession();
-        log("✅ RPC-Session gestartet");
-      }catch(e){ log("❌ Verbinden fehlgeschlagen: " + e); console.error(e); }
-    });
-
-    // Upload
-    document.getElementById('flash').addEventListener('click', async () => {
-      if(!selectedEntries.length){ log("⚠️ Keine Firmware geladen."); return; }
-      try{
-        if(!moduleReady || !flipper){ throw new Error("RPC-Modul nicht geladen"); }
-        let i=0;
-        for(const e of selectedEntries){
-          i++;
-          log(`➡️ Upload ${e.path} (${e.data.length} Bytes)`);
-          await flipper.commands.storage.write("/ext/update/"+e.path, e.data);
-          log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
-          setProgress(20+Math.floor(80*(i/selectedEntries.length)));
-        }
-        setProgress(100);
-        log("🎉 Upload abgeschlossen. Starte Update am Flipper manuell.");
-      }catch(err){ log("❌ Upload-Fehler: " + (err && err.message || err)); console.error(err); }
-    });
-
-    // Events vom Modul
-    window.addEventListener('flipper-ready', (ev) => {
-      moduleReady = true;
-      flipper = ev.detail.flipper;
-      statusEl.textContent = "Modul: geladen";
-      statusEl.style.background = "#0f3a2d";
-      statusEl.style.borderColor = "rgba(0,255,180,.35)";
-    });
-
-    window.addEventListener('flipper-error', (ev) => {
-      moduleReady = false;
-      flipperError = ev.detail.error;
-      statusEl.textContent = "Modul: Fehler";
-      statusEl.style.background = "#4a1b1b";
-      statusEl.style.borderColor = "rgba(255,80,80,.35)";
-      log("❌ Modul-Import fehlgeschlagen: " + flipperError + "\nTipp: Öffne die DevTools (F12) → Console für Details.");
-    });
-  </script>
-
-  <!-- RPC-Modul separat laden; meldet Erfolg/Fehler über Events -->
-  <script type="module">
+    // Modul ja/nein sets via dynamic import
     (async () => {
-      try{
-        const m = await import("https://eliastx09.github.io/flipper/notoga.js");
-        // Erwartete Exporte: commands, connect, disconnect, read, write
-        const flipper = {
+      try {
+        const m = await import('https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/notoga.js');
+        window.flipper = {
           commands: m.commands,
-          connect : m.connect,
+          connect: m.connect,
           disconnect: m.disconnect,
           read: m.read,
           write: m.write
         };
-        window.dispatchEvent(new CustomEvent('flipper-ready', { detail: { flipper } }));
-      }catch(err){
-        console.error("Modul-Importfehler:", err);
-        window.dispatchEvent(new CustomEvent('flipper-error', { detail: { error: String(err) } }));
+        statusEl.textContent = 'Modul: geladen';
+        statusEl.style.color = '#0f3a2d';
+      } catch (err) {
+        console.error('Modul-Import-Fehler', err);
+        statusEl.textContent = 'Modul: FEHLER';
+        statusEl.style.color = '#4a1b1b';
+        log('Modul-Import-Fehler: ' + err);
       }
     })();
   </script>
