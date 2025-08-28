@@ -3,34 +3,83 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper WebFlajkhsher</title>
+  <title>Flipper WebFlasher (Variante B)</title>
   <style>
-    body{margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
+    :root{
+      --bg:#071423;--card:#0b182a;--ink:#e4f7ff;--ink-dim:#9cb6c4;
+      --hl:#00e6ff;--hl2:#9b5cff;--well:#020612;--well2:#081825;--btn:#052033;--btnH:#13314b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:var(--bg);color:var(--ink)}
     header{text-align:center;padding:20px}
-    h1{color:#00e6ff}
-    main{display:flex;gap:16px;max-width:900px;margin:20px auto}
-    .card{background:#0b182a;padding:16px;border-radius:8px;flex:1}
-    .console,.filelist{background:#020612;padding:8px;border-radius:6px;height:180px;overflow:auto;white-space:pre-wrap}
-    .progress{background:#081825;height:10px;border-radius:6px;margin:8px 0}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
-    button{margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
-    button:hover{background:#13314b}
+    h1{color:var(--hl);margin:0 0 6px}
+    .sub{color:var(--ink-dim);font-size:12px}
+    main{display:flex;gap:16px;max-width:980px;margin:20px auto;padding:0 12px;flex-wrap:wrap}
+    .card{background:var(--card);padding:16px;border-radius:10px;flex:1;min-width:320px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .console,.filelist{background:var(--well);padding:10px;border-radius:8px;height:220px;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.35}
+    .filelist{height:180px}
+    .progress{background:var(--well2);height:10px;border-radius:6px;margin:8px 0;overflow:hidden}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,var(--hl),var(--hl2))}
+    .bar2{height:6px;background:linear-gradient(90deg,var(--hl),var(--hl2));width:0;border-radius:6px}
+    button{margin:4px 0;padding:8px 10px;border-radius:6px;background:var(--btn);color:var(--ink);cursor:pointer;border:1px solid #0f3350}
+    button:hover{background:var(--btnH)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .pill{padding:4px 8px;border-radius:999px;background:#052033;border:1px solid #0f3350;color:#a8d4e6;font-size:12px}
+    input[type=file]{accent-color:var(--hl)}
+    .hint{font-size:12px;color:var(--ink-dim);margin-top:6px}
+    .ok{color:#7fffd4}
+    .bad{color:#ff8a8a}
+    .sep{height:1px;background:#102236;margin:10px 0}
+    .grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+    a.link{color:var(--hl)}
   </style>
 </head>
 <body>
-  <header><h1>Flipper WebFlasher</h1></header>
+  <header>
+    <h1>Flipper WebFlasher</h1>
+    <div class="sub">Variante B · Upload nach <code>/ext/update</code> → <code>update start …</code> → Live-Log</div>
+  </header>
+
   <main>
-    <div class="card">
-      <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
-      <button id="connect" disabled>🔌 Verbinden</button>
-      <button id="flash" disabled>⚡ Upload</button>
-      <button id="reboot" disabled>🔄 Reboot</button>
+    <div class="card" style="flex:1.1">
+      <div class="grid">
+        <div class="row">
+          <input type="file" id="fw" accept=".zip,.tgz,.tar.gz,.tar" />
+          <span id="fwInfo" class="pill">keine Datei</span>
+        </div>
+        <div class="row">
+          <button id="connect" disabled>🔌 Verbinden</button>
+          <button id="reboot" disabled>♻️ Reboot</button>
+        </div>
+      </div>
+
       <div class="progress"><div id="bar" class="bar"></div></div>
-      <div id="log" class="console">Bereit.</div>
+
+      <div class="row" style="gap:6px">
+        <button id="flash" disabled>⚡ Upload & Update</button>
+        <button id="list" disabled>📂 /ext/update anzeigen</button>
+        <button id="cancel" disabled>🛑 Abbrechen</button>
+      </div>
+
+      <div id="log" class="console">Bereit. Datei wählen, dann verbinden.</div>
+
+      <div class="hint">
+        Tipp: In Chrome/Edge öffnen. Wenn „Port öffnen fehlgeschlagen“ → USB-Kabel/Port wechseln, andere Programme schließen (qFlipper/Flipper Mobile/Serial Monitor).
+      </div>
     </div>
-    <div class="card">
-      <h3>Inhalt:</h3>
+
+    <div class="card" style="flex:.9">
+      <h3 style="margin:0 0 8px">Inhalt des Archivs</h3>
       <div id="files" class="filelist">(keine Datei)</div>
+      <div class="sep"></div>
+      <div class="row" style="justify-content:space-between">
+        <div>
+          Erkanntes Manifest: <code id="manifestLabel">–</code>
+          <div class="bar2" id="opBar" style="margin-top:6px"></div>
+        </div>
+        <span id="devState" class="pill">Getrennt</span>
+      </div>
     </div>
   </main>
 
@@ -38,98 +87,36 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 
-  <!-- notoga.js inline -->
   <script>
-/* ===== START notoga.js (mit System.Reboot) ===== */
+    // ---------- UI-Helfer ----------
+    const $ = sel => document.querySelector(sel);
+    const logEl = $('#log');
+    const barEl = $('#bar');
+    const opBarEl = $('#opBar');
+    const filesEl = $('#files');
+    const fwInput = $('#fw');
+    const fwInfo = $('#fwInfo');
+    const btnConnect = $('#connect');
+    const btnReboot  = $('#reboot');
+    const btnFlash = $('#flash');
+    const btnList = $('#list');
+    const btnCancel = $('#cancel');
+    const devState = $('#devState');
 
-// Hilfsfunktionen
-const g = (ms) => new Promise(r => setTimeout(r, ms)); // sleep
-let port=null;
+    function log(m){ logEl.textContent += (logEl.textContent ? '\\n' : '') + m; logEl.scrollTop = logEl.scrollHeight; }
+    function setProgress(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
+    function setOp(p){ opBarEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
 
-// Verbindung vorbereiten
-async function connectSerial(){
-  port = await navigator.serial.requestPort();
-  await port.open({ baudRate: 115200 });
-  return port;
-}
-async function writeSerial(data){
-  if(!port) throw new Error("Port nicht offen");
-  const writer = port.writable.getWriter();
-  await writer.write(data);
-  writer.releaseLock();
-}
-
-// Dummy emitter
-const a = {events:{},on(e,f){(this.events[e] ||= []).push(f);},emit(e,d){(this.events[e]||[]).forEach(fn=>fn(d));}};
-
-// Reboot Frame bauen (System.Reboot, cmd_id Beispiel 0x0032)
-function buildRebootFrame(){
-  const MAGIC = [0x52,0x50]; // "RP"
-  const CMD_ID = 0x0032;     // Beispiel-ID System.Reboot
-  const payload = [];        // leer
-  const length = 2 + payload.length; // nur cmd_id
-  const frame = new Uint8Array(2+2+length+2);
-  let o=0;
-  frame[o++]=MAGIC[0]; frame[o++]=MAGIC[1];
-  frame[o++]=length & 0xFF; frame[o++]=(length>>8)&0xFF;
-  frame[o++]=CMD_ID & 0xFF; frame[o++]=(CMD_ID>>8)&0xFF;
-  // payload none
-  // CRC16 (Dummy 0x0000 für jetzt)
-  frame[o++]=0x00; frame[o++]=0x00;
-  return frame;
-}
-
-// Befehle
-const oe = {
-  emitter: a,
-  startRpcSession: async () => { await g(200); return "rpc started"; },
-  stopRpcSession: async () => { await g(200); return "rpc stopped"; },
-  storage: {
-    write: async (path, data) => {
-      console.log("WRITE", path, data.length);
-      // hier käme eigentlich RPC FileWrite
-    }
-  },
-  system: {
-    reboot: async () => {
-      const frame=buildRebootFrame();
-      await writeSerial(frame);
-      return "reboot sent";
-    }
-  }
-};
-
-// Globale Schnittstelle
-window.flipper = {
-  commands: oe,
-  connect: async () => {await connectSerial();return "connected";},
-  disconnect: async () => {if(port) await port.close();port=null;},
-  emitter: a
-};
-/* ===== END notoga.js ===== */
-  </script>
-
-  <!-- UI-Logik -->
-  <script>
-    const logEl=document.getElementById('log');
-    const barEl=document.getElementById('bar');
-    const filesEl=document.getElementById('files');
-    const fwInput=document.getElementById('fw');
-    const connectBtn=document.getElementById('connect');
-    const flashBtn=document.getElementById('flash');
-    const rebootBtn=document.getElementById('reboot');
-    let selectedEntries=[];
-
-    function log(m){logEl.textContent+="\n"+m;logEl.scrollTop=logEl.scrollHeight;}
-    function setProgress(p){barEl.style.width=Math.max(0,Math.min(100,p))+"%";}
-
+    // ---------- Archiv entpacken ----------
     function parseTar(u8){
-      const files=[];const block=512;let off=0;
-      const dec=new TextDecoder();const readStr=a=>dec.decode(a).replace(/\0+$/,'').trim();
+      const files=[]; const block=512; let off=0;
+      const dec=new TextDecoder(); const readStr=a=>dec.decode(a).replace(/\\0+$/,'').trim();
       while(off+block<=u8.length){
-        const h=u8.subarray(off,off+block);const name=readStr(h.subarray(0,100));
-        if(!name){if(h.every(b=>b===0))break;off+=block;continue;}
-        const size=parseInt(readStr(h.subarray(124,136)),8)||0;off+=block;
+        const h=u8.subarray(off,off+block);
+        const name=readStr(h.subarray(0,100));
+        if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
+        const size=parseInt(readStr(h.subarray(124,136)),8)||0;
+        off+=block;
         const data=u8.subarray(off,off+size);
         files.push({path:name,data:new Uint8Array(data)});
         off+=Math.ceil(size/block)*block;
@@ -137,63 +124,244 @@ window.flipper = {
       return files;
     }
 
-    fwInput.addEventListener('change',async()=>{
+    let selectedEntries = [];
+    let manifestPath = null;
+
+    fwInput.addEventListener('change', async () => {
+      filesEl.textContent = '(keine Datei)';
+      selectedEntries = [];
+      manifestPath = null;
+      setOp(0); setProgress(0);
       try{
-        const file=fwInput.files[0];
-        const buf=new Uint8Array(await file.arrayBuffer());
-        let entries=[];
-        const name=file.name.toLowerCase();
+        const file = fwInput.files[0];
+        if(!file){ fwInfo.textContent='keine Datei'; btnConnect.disabled = true; btnFlash.disabled = true; return; }
+        fwInfo.textContent = file.name + ' • ' + (file.size/1024).toFixed(1) + ' KB';
+
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const name = file.name.toLowerCase();
+        let entries = [];
+
         if(name.endsWith('.zip')){
-          const zip=await JSZip.loadAsync(buf);
+          const zip = await JSZip.loadAsync(buf);
           for(const k of Object.keys(zip.files)){
-            const e=zip.files[k];if(e.dir)continue;
-            entries.push({path:k,data:new Uint8Array(await e.async('uint8array'))});
+            const e = zip.files[k];
+            if(e.dir) continue;
+            const bytes = new Uint8Array(await e.async('uint8array'));
+            entries.push({ path:k, data:bytes });
           }
         }else{
-          const tarData=name.endsWith('.tgz')||name.endsWith('.tar.gz')?pako.ungzip(buf):buf;
-          entries=parseTar(tarData);
+          const tarData = (name.endsWith('.tgz')||name.endsWith('.tar.gz')) ? pako.ungzip(buf) : buf;
+          entries = parseTar(tarData);
         }
-        selectedEntries=entries;
-        filesEl.textContent=entries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
-        log(`${entries.length} Datei(en) geladen`);
-        connectBtn.disabled=false;
-      }catch(err){log("Fehler beim Entpacken: "+err);}
+
+        // normalisieren & Manifest finden
+        entries = entries.map(e => ({ path:e.path.replace(/\\\\/g,'/').replace(/^\\/+/,''), data:e.data }));
+        const fuf = entries.find(e => /(^|\\/)update\\.fuf$/i.test(e.path));
+        manifestPath = fuf ? fuf.path : null;
+
+        selectedEntries = entries;
+        filesEl.textContent = entries.map(e => \`\${e.path} • \${e.data.length} bytes\`).join('\\n');
+        $('#manifestLabel').textContent = manifestPath || 'nicht gefunden';
+        log(\`📦 \${entries.length} Datei(en) im Archiv\`);
+        // Jetzt darf man verbinden
+        btnConnect.disabled = false;
+        btnFlash.disabled = true; // erst wenn verbunden
+      }catch(err){
+        fwInfo.textContent='Fehler';
+        log('❌ Fehler beim Entpacken: '+err);
+        btnConnect.disabled = true;
+        btnFlash.disabled = true;
+      }
     });
 
-    connectBtn.onclick=async()=>{
-      try{
-        await window.flipper.connect();
-        await window.flipper.commands.startRpcSession();
-        log("✅ Verbunden & RPC gestartet");
-        flashBtn.disabled=false;
-        rebootBtn.disabled=false;
-      }catch(e){log("❌ Verbinden fehlgeschlagen: "+e);}
-    };
+    // ---------- WebSerial / CLI ----------
+    const sleep = ms => new Promise(r=>setTimeout(r,ms));
+    let port = null;
+    let reader = null;
+    let writer = null;
+    let readLoopAbort = false;
+    let lineBuf = '';
 
-    flashBtn.onclick=async()=>{
-      if(!selectedEntries.length){log("⚠️ Keine Firmware geladen.");return;}
+    async function openPort(){
+      if(!('serial' in navigator)) throw new Error('WebSerial API nicht verfügbar (Chrome/Edge nutzen).');
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      writer = port.writable.getWriter();
+      reader = port.readable.getReader();
+      readLoopAbort = false;
+      readLoop(); // ohne await, läuft parallel
+    }
+
+    async function closePort(){
+      try{ readLoopAbort = true; if(reader){ try{ reader.releaseLock(); }catch{} } }catch{}
+      try{ if(writer){ try{ writer.releaseLock(); }catch{} }catch{}
+      try{ if(port) await port.close(); }catch{}
+      port = reader = writer = null;
+    }
+
+    async function readLoop(){
+      const dec = new TextDecoder();
       try{
+        while(!readLoopAbort){
+          const { value, done } = await reader.read();
+          if(done) break;
+          if(value){
+            const chunk = dec.decode(value);
+            lineBuf += chunk;
+            // log raw to console
+            const lines = lineBuf.split(/\\r?\\n/);
+            lineBuf = lines.pop() ?? '';
+            for(const ln of lines){
+              if(ln.trim()) log('📟 ' + ln);
+              // einfache Progress-Schätzung bei Prozentangaben
+              const m = ln.match(/(\\d{1,3})%/);
+              if(m){ setOp(+m[1]); }
+            }
+          }
+        }
+      }catch(e){
+        if(!readLoopAbort) log('⚠️ readLoop: '+e);
+      }
+    }
+
+    async function cliWriteLine(s){
+      const enc = new TextEncoder();
+      await writer.write(enc.encode(s.endsWith('\\r')||s.endsWith('\\n') ? s : (s+'\\r')));
+    }
+
+    async function cliWriteRaw(bytes){
+      // Rohbytes senden (für storage write Datenphase)
+      await writer.write(bytes);
+    }
+
+    // Einige Flipper-CLI-Befehle
+    async function cliMkdir(p){ await cliWriteLine('storage mkdir ' + p); }
+    async function cliList(p){ await cliWriteLine('storage list ' + p); }
+    async function cliReboot(){ await cliWriteLine('reboot'); }
+    async function cliUpdateStart(p){ await cliWriteLine('update start ' + p); }
+
+    // **WICHTIG**: Chunked Upload über CLI
+    // Flipper-CLI erwartet für "storage write <path> <len>" anschließend genau <len> Rohbytes.
+    async function cliStorageWrite(path, data, chunk=1024){
+      await cliWriteLine(\`storage remove \${path}\`); // ignorier Fehler
+      await sleep(30);
+      await cliWriteLine(\`storage write \${path} \${data.length}\`);
+      await sleep(20);
+      let sent=0;
+      while(sent < data.length){
+        const part = data.subarray(sent, Math.min(data.length, sent+chunk));
+        await cliWriteRaw(part);
+        sent += part.length;
+        setProgress(Math.round((sent/data.length)*80)+5);
+        await sleep(2);
+      }
+      // ein kleines Delay, damit das Gerät die Daten abschließen kann
+      await sleep(60);
+    }
+
+    // ---------- UI Actions ----------
+    btnConnect.addEventListener('click', async ()=>{
+      try{
+        btnConnect.disabled = true;
+        await openPort();
+        devState.textContent = 'Verbunden';
+        devState.style.background = '#0c3a2d';
+        devState.style.color = '#a6ffd6';
+        log('✅ Verbunden. CLI bereit.');
+        btnFlash.disabled = false;
+        btnList.disabled = false;
+        btnCancel.disabled = false;
+        btnReboot.disabled = false;
+      }catch(e){
+        log('❌ Verbinden fehlgeschlagen: ' + e);
+        btnConnect.disabled = false;
+      }
+    });
+
+    btnCancel.addEventListener('click', async ()=>{
+      btnCancel.disabled = true;
+      try{
+        await closePort();
+        log('⏹️ Verbindung geschlossen.');
+      }catch(e){ log('⚠️ close: ' + e); }
+      devState.textContent = 'Getrennt';
+      devState.style.background = '#052033';
+      devState.style.color = '#a8d4e6';
+      btnConnect.disabled = (fwInput.files.length===0);
+      btnFlash.disabled = true;
+      btnList.disabled = true;
+      btnReboot.disabled = true;
+    });
+
+    btnReboot.addEventListener('click', async ()=>{
+      try{
+        await cliReboot();
+        log('♻️ Reboot angefordert.');
+      }catch(e){ log('❌ Reboot-Fehler: '+e); }
+    });
+
+    btnList.addEventListener('click', async ()=>{
+      try{
+        await cliList('/ext/update');
+      }catch(e){ log('❌ storage list: '+e); }
+    });
+
+    btnFlash.addEventListener('click', async ()=>{
+      if(!port || !writer){ log('⚠️ Bitte zuerst verbinden.'); return; }
+      if(!selectedEntries.length){ log('⚠️ Keine Firmware geladen.'); return; }
+
+      try{
+        setProgress(5); setOp(0);
+        log('➡️ Erstelle /ext/update …');
+        await cliMkdir('/ext/update');
+        await sleep(30);
+
+        // Upload aller Dateien
         let i=0;
         for(const e of selectedEntries){
           i++;
-          log(`➡️ Upload ${e.path}`);
-          await window.flipper.commands.storage.write("/ext/update/"+e.path,e.data);
-          log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
-          setProgress(20+Math.floor(80*(i/selectedEntries.length)));
+          const target = '/ext/update/' + e.path.replace(/^\\/+/, '');
+          log(\`⬆️ Upload: \${target} (\${e.data.length} bytes)\`);
+          await cliStorageWrite(target, e.data, 1024);
+          log(\`✅ Fertig: \${e.path} (\${i}/\${selectedEntries.length})\`);
         }
-        setProgress(100);
-        log("🎉 Upload abgeschlossen → Sende Reboot...");
-        await window.flipper.commands.system.reboot();
-        log("🔄 Flipper sollte jetzt neu starten.");
-      }catch(err){log("❌ Upload-Fehler: "+err);}
-    };
+        setProgress(90);
 
-    rebootBtn.onclick=async()=>{
-      try{
-        await window.flipper.commands.system.reboot();
-        log("🔄 Reboot-Befehl gesendet.");
-      }catch(err){log("❌ Reboot fehlgeschlagen: "+err);}
-    };
+        if(!manifestPath){
+          log('⚠️ Kein update.fuf im Archiv gefunden. Update-Start wird übersprungen.');
+          log('ℹ️ Variante: Starte Update manuell am Gerät: Main Menu → System → Update → From SD Card → /ext/update/…');
+          setProgress(100);
+          return;
+        }
+
+        // Update starten
+        const manifest = '/ext/update/' + manifestPath.replace(/^\\/+/, '');
+        log('🚀 Starte Update: ' + manifest);
+        await cliUpdateStart(manifest);
+
+        // Warten & Log anzeigen (Flipper gibt Prozent/Status aus)
+        // Wir lassen die readLoop laufen; hier nur grobes Warten und UI blocken
+        setProgress(95);
+        log('⏳ Warte auf Updater-Ausgaben… (nicht trennen)');
+        // Optionale Wartezeit – die echte Progress kommt aus der ser. Ausgabe
+        const start = Date.now();
+        while(Date.now() - start < 180000){ // bis 3 Min
+          await sleep(500);
+        }
+
+        setProgress(100);
+        log('🎉 Upload abgeschlossen. Update sollte laufen.');
+        log('Falls der Bildschirm nicht im Update-Modus ist: Menü → System → Update → From SD → /ext/update/update.fuf');
+
+      }catch(err){
+        log('❌ Upload/Update-Fehler: '+err);
+      }
+    });
+
+    // Datei gewählt? Dann darf man verbinden
+    fwInput.addEventListener('change', ()=>{
+      btnConnect.disabled = !(fwInput.files && fwInput.files.length>0);
+    });
   </script>
 </body>
 </html>
