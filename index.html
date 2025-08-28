@@ -3,49 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper WebFlasher (RPC)</title>
+  <title>Flipper WebFlasher</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#06101d;--card:#0b182a;--neon:#00e6ff;--muted:#8db3c1}
-    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff}
-    header{padding:26px;text-align:center;border-bottom:1px solid rgba(0,230,255,.08)}
-    h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:var(--neon);margin:0;font-size:26px}
-    main{max-width:1000px;margin:34px auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:18px}
-    .card{background:linear-gradient(180deg,rgba(10,20,35,.95),rgba(5,10,20,.9));padding:22px;border-radius:16px;border:1px solid rgba(0,230,255,.1);box-shadow:0 0 18px rgba(0,230,255,.08)}
-    label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
-    input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px dashed rgba(0,230,255,.2);background:transparent;color:inherit;cursor:pointer}
-    button{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.06em;padding:12px 16px;border-radius:10px;border:1px solid rgba(0,230,255,.2);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer;transition:all .15s}
-    button:hover{box-shadow:0 0 12px var(--neon)}
-    .row{display:flex;gap:10px;margin-top:12px}
-    .row>button{flex:1}
-    .console{height:260px;overflow:auto;padding:12px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,.1);font-size:13px;line-height:1.4;white-space:pre-wrap}
-    .filelist{height:260px;overflow:auto;padding:12px;border-radius:10px;background:#031126;border:1px solid rgba(0,230,255,.06);font-size:13px}
-    .progress{height:14px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,.15);margin:14px 0}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
-    @media (max-width:1000px){main{grid-template-columns:1fr}}
+    body{margin:0;font-family:"JetBrains Mono",monospace;background:#071423;color:#e4f7ff}
+    header{padding:20px;text-align:center}
+    h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:#00e6ff}
+    main{max-width:900px;margin:20px auto;padding:20px;display:grid;grid-template-columns:1fr 300px;gap:20px}
+    .card{background:#0b182a;padding:20px;border-radius:12px}
+    .console{height:220px;overflow:auto;background:#020612;padding:10px;border-radius:8px;font-size:13px;white-space:pre-wrap}
+    .filelist{height:220px;overflow:auto;background:#031126;padding:10px;border-radius:8px;font-size:13px}
+    .progress{height:12px;border-radius:999px;background:#081825;overflow:hidden;margin:10px 0}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
+    button{padding:10px 14px;margin-top:10px;border:none;border-radius:8px;background:#07263a;color:#fff;cursor:pointer;font-family:Orbitron}
+    button:hover{box-shadow:0 0 10px #00e6ff}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Flipper WebFlasher (RPC)</h1>
-  </header>
-
+  <header><h1>Flipper WebFlasher</h1></header>
   <main>
     <section class="card">
-      <label for="fw">Firmware-Paket wählen (.zip / .tgz)</label>
+      <label>Firmware-Paket wählen (.zip/.tgz)</label>
       <input id="fw" type="file" accept=".zip,.tgz,.tar.gz" />
-
-      <div class="row">
-        <button id="connect">🔌 Gerät verbinden</button>
+      <div>
+        <button id="connect">🔌 Verbinden</button>
         <button id="flash">⚡ Upload</button>
       </div>
-
       <div class="progress"><div id="bar" class="bar"></div></div>
       <div id="log" class="console">Bereit.</div>
     </section>
-
     <aside class="card">
-      <h3 style="margin:0 0 8px 0">Paketinhalt</h3>
+      <h3>Paketinhalt</h3>
       <div id="files" class="filelist">(keine Datei geladen)</div>
     </aside>
   </main>
@@ -56,9 +44,15 @@
 
   <!-- Hauptskript -->
   <script type="module">
-    import { commands, connect, disconnect, read, write } from "https://eliastx09.github.io/flipper/notoga.js";
+    import * as rpc from "https://eliastx09.github.io/flipper/notoga.js";
 
-    window.flipper = { commands, connect, disconnect, read, write };
+    const flipper = {
+      commands: rpc.commands,
+      connect: rpc.connect,
+      disconnect: rpc.disconnect,
+      read: rpc.read,
+      write: rpc.write
+    };
 
     const logEl = document.getElementById('log');
     const barEl = document.getElementById('bar');
@@ -66,14 +60,14 @@
     const fwInput = document.getElementById('fw');
     let selectedEntries = [];
 
-    const log = (m) => { logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; };
+    const log = (m) => { logEl.textContent += "\\n" + m; logEl.scrollTop = logEl.scrollHeight; };
     const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
 
     function parseTar(u8){
-      const files = []; const block = 512; let off = 0;
-      const dec = new TextDecoder();
-      const readStr = (a)=>dec.decode(a).replace(/\0+$/, '').trim();
-      while(off+block <= u8.length){
+      const files=[]; const block=512; let off=0;
+      const dec=new TextDecoder();
+      const readStr=(a)=>dec.decode(a).replace(/\\0+$/,'').trim();
+      while(off+block<=u8.length){
         const h=u8.subarray(off,off+block); const name=readStr(h.subarray(0,100));
         if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
         const size=parseInt(readStr(h.subarray(124,136)),8)||0; off+=block;
@@ -97,7 +91,7 @@
       }
       if(name.endsWith('.tgz')||name.endsWith('.tar.gz')) return parseTar(pako.ungzip(buf));
       if(name.endsWith('.tar')) return parseTar(buf);
-      throw new Error('Nicht unterstütztes Format');
+      throw new Error('Format nicht unterstützt');
     }
 
     fwInput.addEventListener('change', async()=>{
@@ -106,8 +100,8 @@
         const file=fwInput.files[0]; selectedEntries=await readArchive(file);
         if(!selectedEntries.length){ filesEl.textContent='(leer)'; setProgress(0); return; }
         selectedEntries.sort((a,b)=>a.path.localeCompare(b.path));
-        filesEl.textContent=selectedEntries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
-        log(`📦 ${selectedEntries.length} Dateien geladen`); setProgress(15);
+        filesEl.textContent=selectedEntries.map(e=>e.path+" • "+e.data.length+" Bytes").join('\\n');
+        log("📦 "+selectedEntries.length+" Dateien geladen"); setProgress(15);
       }catch(err){ filesEl.textContent='Fehler: '+err; log('❌ Entpack-Fehler: '+err.message); setProgress(0);}
     });
 
@@ -125,9 +119,9 @@
         let i=0;
         for(const e of selectedEntries){
           i++;
-          log(`➡️ Upload ${e.path} (${e.data.length} Bytes)`);
+          log("➡️ Upload "+e.path+" ("+e.data.length+" Bytes)");
           await flipper.commands.storage.write("/ext/update/"+e.path, e.data);
-          log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
+          log("✅ "+e.path+" ("+i+"/"+selectedEntries.length+")");
           setProgress(20+Math.floor(80*(i/selectedEntries.length)));
         }
         setProgress(100);
