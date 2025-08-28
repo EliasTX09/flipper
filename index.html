@@ -18,7 +18,7 @@
   </style>
 </head>
 <body>
-  <header><h1>Flipper WghebFlasher</h1></header>
+  <header><h1>Flipper WebFlasher</h1></header>
   <main>
     <div class="card">
       <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
@@ -37,7 +37,9 @@
   <!-- Protobuf Runtime -->
   <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
 
-  /*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
+  <!-- Dein GANZES flipper-rpc.js hier reinkopieren -->
+  <script>
+ /*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
 "use strict";
 
 var $protobuf = require("protobufjs/minimal");
@@ -19906,9 +19908,7 @@ $root.PB_Property = (function() {
 })();
 
 module.exports = $root;
-  <script>
- 
-  /* ===== END flipper-rpc.js ===== */
+
   </script>
 
   <!-- Hauptlogik -->
