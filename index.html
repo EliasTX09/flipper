@@ -2,92 +2,81 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper Zero – Wer (Cyber Edition)</title>
-  <meta name="description" content="WebSerial Web Updater für Flipper Zero — entpackt Firmware-Pakete im Browser und überträgt sie per WebSerial (RPC-Plug-in benötigt)."/>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <title>Flipper WebFlasher</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#06101d;--card:#081425;--muted:#8db3c1;--neon:#00e6ff}
+    :root {
+      --bg:#06101d; --card:#0b182a; --neon:#00e6ff; --muted:#8db3c1;
+    }
     *{box-sizing:border-box}
-    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff}
-    header{padding:22px;text-align:center;border-bottom:1px solid rgba(0,230,255,0.06)}
-    h1{font-family:Orbitron,system-ui,Arial;font-size:24px;letter-spacing:.08em;color:var(--neon);margin:0}
-    main{max-width:1100px;margin:28px auto;padding:20px;display:grid;grid-template-columns:1fr 380px;gap:18px}
-    .card{background:linear-gradient(180deg, rgba(6,16,29,0.9), rgba(4,10,19,0.85));padding:18px;border-radius:14px;border:1px solid rgba(0,230,255,0.06)}
-    label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
-    input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px dashed rgba(0,230,255,0.06);background:transparent;color:inherit}
-    button{font-family:Orbitron,system-ui;font-weight:700;letter-spacing:.06em;padding:12px 14px;border-radius:10px;border:1px solid rgba(0,230,255,0.12);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer}
-    .muted{color:var(--muted);font-size:13px}
-    .console{height:300px;overflow:auto;padding:12px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,0.04);font-family:monospace;font-size:13px}
-    .file-list{max-height:220px;overflow:auto;padding:8px;border-radius:10px;background:#031126;border:1px solid rgba(0,230,255,0.03)}
-    .progress{height:12px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,0.03)}
+    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff;}
+    header{padding:22px;text-align:center;border-bottom:1px solid rgba(0,230,255,0.08)}
+    h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:var(--neon);margin:0;font-size:26px}
+    main{max-width:700px;margin:40px auto;padding:20px}
+    .card{background:linear-gradient(180deg,rgba(10,20,35,0.95),rgba(5,10,20,0.9));padding:24px;border-radius:16px;border:1px solid rgba(0,230,255,0.1);box-shadow:0 0 18px rgba(0,230,255,0.1)}
+    label{font-size:14px;color:var(--muted);display:block;margin-bottom:8px}
+    input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px dashed rgba(0,230,255,0.2);background:transparent;color:inherit;cursor:pointer}
+    button{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.06em;padding:12px 18px;border-radius:10px;border:1px solid rgba(0,230,255,0.2);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer;transition:all .2s}
+    button:hover{box-shadow:0 0 12px var(--neon)}
+    .console{height:220px;overflow:auto;padding:12px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,0.1);font-size:13px;line-height:1.4}
+    .progress{height:14px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,0.15);margin:16px 0}
     .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
-    footer{max-width:1100px;margin:20px auto;color:var(--muted);font-size:13px;text-align:center}
-    @media(max-width:1000px){main{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <header>
-    <h1>FLPRZ • WEBUPDATER (Cyber)</h1>
-    <div class="muted">Normaler Update‑Flow über WebSerial (kein DFU). Chrome/Edge required.</div>
+    <h1>Flipper WebFlasher</h1>
   </header>
 
   <main>
     <section class="card">
-      <h2 style="margin-top:0">1) Firmware wählen</h2>
-      <label for="fw">CFW Paket (.tgz / .zip)</label>
-      <input id="fw" type="file" accept=".tgz,.tar.gz,.zip" />
+      <label for="fw">Firmware wählen (.zip / .tgz)</label>
+      <input id="fw" type="file" accept=".zip,.tgz,.tar.gz" />
 
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <button id="connect" style="flex:1">Verbinden &amp; Upload starten</button>
-        <button id="listFiles" style="width:140px">Dateien anzeigen</button>
+      <div style="margin-top:16px">
+        <button id="connect" style="width:100%">🔌 Gerät verbinden & Flash starten</button>
       </div>
 
-      <h3 style="margin:18px 0 6px 0">Inhalt des Pakets</h3>
-      <div class="file-list" id="fileList">(keine Datei geladen)</div>
-
-      <h3 style="margin:16px 0 6px 0">Fortschritt</h3>
       <div class="progress"><div id="bar" class="bar"></div></div>
-
-      <h3 style="margin:16px 0 6px 0">Konsole</h3>
       <div class="console" id="log">Bereit.</div>
     </section>
-
-    <aside class="card">
-      <h3 style="margin-top:0">Wie funktioniert das?</h3>
-      <ul class="muted">
-        <li>Dieses Tool entpackt das CFW‑Paket im Browser (gzip/tar oder zip).</li>
-        <li>Danach werden die Dateien per <strong>WebSerial</strong> an den Flipper geschickt.</li>
-        <li>Für das Schreiben ins Flipper‑Dateisystem wird ein <strong>RPC‑Client</strong> benötigt (siehe unten).</li>
-      </ul>
-
-      <h4 style="margin-top:12px">Wichtig</h4>
-      <p class="muted">Damit die Übertragung ins Gerät automatisch funktioniert, brauchst du eine JS‑RPC‑Bibliothek (flipper rpc client) im Browser. Du kannst die offizielle/Community‑Version einbinden (z. B. aus Momentum oder flipper repo). Unten stehen Hinweise, wie du das einbindest.</p>
-
-      <h4 style="margin-top:12px">Fallback</h4>
-      <p class="muted">Funktioniert auch ohne RPC: die Seite entpackt und zeigt Dateien, dann kannst du sie manuell per SFTP/USB‑MTP übertragen oder die Konsole nutzen.</p>
-
-      <div style="margin-top:18px">
-        <button id="downloadLog">Konsole herunterladen</button>
-      </div>
-
-      <hr style="margin:18px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
-      <div class="muted"><strong>Hinweis für Entwickler:</strong><br>
-      Setze eine globale Variable <code>window.FlipperRPC</code> (oder binde eine kompatible RPC‑Bundle</code>) — dann macht der Uploader das komplette Update automatisch.</div>
-    </aside>
   </main>
 
-  <footer>Built with ♥ — Drop the flipper rpc bundle into the page to enable the full automatic update.</footer>
+  <script>
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const fwInput = document.getElementById("fw");
 
-  <!-- External libs: pako (gunzip) + untar (simple) + tar parsing helper -->
-  <script type="module">
-    import pako from 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs';
+    function log(msg){
+      logEl.innerText += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
 
-    // tiny tar parser (minimal) — adapted from https://github.com/beatgammit/tar-js (MIT) but small helper here
-    function parseTar(buffer){
-      const files = ["https://github.com/username/repo/releases/latest/download/flipperzero-custom-fw.tgz"];
-      const view = new Uint8Array(buffer);
-      let offset = 0;
-      function getString(off,len){return new TextDecoder().decode(view.subarray(off,off+len)).replace(/
+    fwInput.addEventListener("change", () => {
+      if(fwInput.files.length){
+        log("📦 Firmware-Datei ausgewählt: " + fwInput.files[0].name);
+        barEl.style.width = "20%";
+      }
+    });
+
+    document.getElementById("connect").addEventListener("click", async () => {
+      try {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        log("✅ Verbunden mit Gerät");
+
+        const writer = port.writable.getWriter();
+        log("📤 Sende Testdaten...");
+        const data = new TextEncoder().encode("Hello Flipper!\n");
+        await writer.write(data);
+        writer.releaseLock();
+
+        log("✅ Testdaten gesendet");
+        barEl.style.width = "100%";
+      } catch(err){
+        log("❌ Fehler: " + err);
+      }
+    });
+  </script>
+</body>
+</html>
