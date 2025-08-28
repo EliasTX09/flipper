@@ -25,6 +25,10 @@
     .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
     @media (max-width:1000px){main{grid-template-columns:1fr}}
   </style>
+
+  <!-- externe libs -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 </head>
 <body>
   <header>
@@ -51,157 +55,114 @@
     </aside>
   </main>
 
-  <!-- JS libs: JSZip for .zip, pako for gzip, tiny tar parser for .tar -->
-  <script type="module">
-    import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
-    import pako from "https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs";
-
-    // ===== UI helpers =====
+  <script>
     const logEl = document.getElementById('log');
     const barEl = document.getElementById('bar');
     const filesEl = document.getElementById('files');
     const fwInput = document.getElementById('fw');
-    let selectedEntries = []; // {path, data:Uint8Array}
+    let selectedEntries = [];
 
-    const log = (m) => { logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; };
-    const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
+    function log(m){ logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; }
+    function setProgress(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
 
-    // ===== .tar parser (minimal) =====
+    // .tar parser minimal
     function parseTar(u8){
       const files = [];
-      const block = 512;
-      let off = 0;
-      const text = new TextDecoder();
-      function readString(arr){ return text.decode(arr).replace(/\0+$/, '').trim(); }
-      while (off + block <= u8.length){
-        const header = u8.subarray(off, off+block);
-        const name = readString(header.subarray(0,100));
-        if(!name){
-          // two consecutive zero blocks => end
-          const allZero = header.every(b=>b===0);
-          if(allZero) break;
-          off += block; continue;
-        }
-        const sizeOct = readString(header.subarray(124, 136));
-        const size = parseInt(sizeOct, 8) || 0;
-        off += block;
-        const data = u8.subarray(off, off+size);
-        files.push({ path: name, data: new Uint8Array(data) });
-        off += Math.ceil(size / block) * block;
+      const block=512; let off=0; const dec=new TextDecoder();
+      function readStr(a){ return dec.decode(a).replace(/\0+$/, '').trim(); }
+      while(off+block<=u8.length){
+        const h=u8.subarray(off,off+block);
+        const name=readStr(h.subarray(0,100));
+        if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
+        const size=parseInt(readStr(h.subarray(124,136)),8)||0;
+        off+=block;
+        const data=u8.subarray(off,off+size);
+        files.push({path:name,data:new Uint8Array(data)});
+        off+=Math.ceil(size/block)*block;
       }
       return files;
     }
 
-    // ===== Read archive (.zip or .tgz/.tar.gz or .tar) =====
     async function readArchive(file){
-      const name = file.name.toLowerCase();
-      const buf = new Uint8Array(await file.arrayBuffer());
+      const name=file.name.toLowerCase();
+      const buf=new Uint8Array(await file.arrayBuffer());
       if(name.endsWith('.zip')){
-        const zip = await JSZip.loadAsync(buf);
-        const out = [];
-        const entries = Object.keys(zip.files);
-        for(const k of entries){
-          const e = zip.files[k];
-          if(e.dir) continue;
-          const data = new Uint8Array(await e.async('uint8array'));
-          out.push({ path: k, data });
-        }
-        return out;
+        const zip=await JSZip.loadAsync(buf);
+        const out=[]; for(const k of Object.keys(zip.files)){
+          const e=zip.files[k]; if(e.dir) continue;
+          const data=new Uint8Array(await e.async('uint8array'));
+          out.push({path:k,data});
+        } return out;
       }
-      if(name.endsWith('.tgz') || name.endsWith('.tar.gz')){
-        const ungz = pako.ungzip(buf);
-        return parseTar(ungz);
+      if(name.endsWith('.tgz')||name.endsWith('.tar.gz')){
+        const ungz=pako.ungzip(buf); return parseTar(ungz);
       }
-      if(name.endsWith('.tar')){
-        return parseTar(buf);
-      }
+      if(name.endsWith('.tar')) return parseTar(buf);
       throw new Error('Nicht unterstütztes Format');
     }
 
-    // ===== UI: choose firmware =====
-    fwInput.addEventListener('change', async () => {
-      filesEl.textContent = 'Lade...';
-      setProgress(5);
+    fwInput.addEventListener('change', async()=>{
+      filesEl.textContent='Lade...'; setProgress(5);
       try{
-        const file = fwInput.files[0];
-        selectedEntries = await readArchive(file);
-        if(!selectedEntries.length){
-          filesEl.textContent = '(leer)'; setProgress(0); return;
-        }
-        selectedEntries.sort((a,b)=> a.path.localeCompare(b.path));
-        const lines = selectedEntries.map(e=> `${e.path}  •  ${e.data.length} bytes`);
-        filesEl.textContent = lines.join('\n');
+        const file=fwInput.files[0];
+        selectedEntries=await readArchive(file);
+        if(!selectedEntries.length){filesEl.textContent='(leer)';setProgress(0);return;}
+        selectedEntries.sort((a,b)=>a.path.localeCompare(b.path));
+        filesEl.textContent=selectedEntries.map(e=>`${e.path}  •  ${e.data.length} bytes`).join('\n');
         log(`📦 ${selectedEntries.length} Dateien geladen`);
         setProgress(15);
-      }catch(err){
-        filesEl.textContent = 'Fehler beim Laden: ' + err;
-        log('❌ Fehler beim Entpacken: ' + err.message);
-        setProgress(0);
-      }
+      }catch(err){filesEl.textContent='Fehler: '+err;log('❌ Entpack-Fehler: '+err.message);setProgress(0);}
     });
 
-    // ===== WebSerial connect =====
-    let port, reader, writer;
+    let port,reader,writer;
     async function connect(){
       if(port) return port;
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
-      writer = port.writable.getWriter();
-      reader = port.readable.getReader();
+      port=await navigator.serial.requestPort();
+      await port.open({baudRate:115200});
+      writer=port.writable.getWriter();
+      reader=port.readable.getReader();
       log('✅ Verbunden mit Gerät');
       return port;
     }
 
-    document.getElementById('connect').addEventListener('click', async ()=>{
-      try{ await connect(); }catch(e){ log('❌ Verbinden fehlgeschlagen: '+e.message); }
+    document.getElementById('connect').addEventListener('click', async()=>{
+      try{await connect();}catch(e){log('❌ Verbinden fehlgeschlagen: '+e.message);}
     });
 
-    // ===== Simple framed send protocol =====
-    // PROTOKOLL (geräteseitig benötigt ein einfacher Empfänger):
-    //  "FILE <path> <size>\n"  -> dann genau <size> Bytes Rohdaten -> "\nEOF\n" -> Gerät antwortet mit "OK\n" oder "ERR <msg>\n"
-    async function sendFramed(path, u8){
-      const enc = new TextEncoder();
+    async function sendFramed(path,u8){
+      const enc=new TextEncoder();
       await writer.write(enc.encode(`FILE ${path} ${u8.length}\n`));
-      const chunk = 4096;
-      let sent = 0;
-      while (sent < u8.length){
-        const end = Math.min(sent + chunk, u8.length);
-        await writer.write(u8.subarray(sent, end));
-        sent = end;
-        setProgress(20 + Math.floor(70 * (sent / u8.length)));
+      const chunk=4096; let sent=0;
+      while(sent<u8.length){
+        const end=Math.min(sent+chunk,u8.length);
+        await writer.write(u8.subarray(sent,end));
+        sent=end; setProgress(20+Math.floor(70*(sent/u8.length)));
       }
       await writer.write(enc.encode(`\nEOF\n`));
-      // wait for OK/ERR
-      const dec = new TextDecoder();
-      let text = '';
+      const dec=new TextDecoder(); let text='';
       for(;;){
-        const { value, done } = await reader.read();
-        if(done) break;
-        if(value) { text += dec.decode(value); if(/\b(OK|ERR)/.test(text)) break; }
+        const {value,done}=await reader.read(); if(done) break;
+        if(value){ text+=dec.decode(value); if(/\b(OK|ERR)/.test(text)) break; }
       }
       if(!/\bOK/.test(text)) throw new Error('Gerät meldet Fehler: '+text.trim());
     }
 
     async function flashAll(){
-      if(!fwInput.files.length) { log('⚠️ Bitte zuerst eine Firmware-Datei wählen.'); return; }
-      if(!selectedEntries.length){ log('⚠️ Paket ist leer.'); return; }
-      try {
+      if(!fwInput.files.length){log('⚠️ Bitte zuerst eine Firmware wählen.');return;}
+      if(!selectedEntries.length){log('⚠️ Paket leer.');return;}
+      try{
         await connect();
-        let i = 0;
+        let i=0;
         for(const e of selectedEntries){
-          i++;
-          log(`➡️  Sende ${e.path} (${e.data.length} bytes)`);
-          await sendFramed(e.path, e.data);
-          log(`✅  ${e.path} übertragen (${i}/${selectedEntries.length})`);
+          i++; log(`➡️ ${e.path} (${e.data.length} bytes)`);
+          await sendFramed(e.path,e.data);
+          log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
         }
-        setProgress(100);
-        log('🎉 Flash‑Vorgang abgeschlossen');
-      } catch(err){
-        log('❌ Flash‑Fehler: ' + err.message);
-      }
+        setProgress(100); log('🎉 Flash abgeschlossen');
+      }catch(err){log('❌ Flash-Fehler: '+err.message);}
     }
 
-    document.getElementById('flash').addEventListener('click', flashAll);
+    document.getElementById('flash').addEventListener('click',flashAll);
   </script>
 </body>
 </html>
