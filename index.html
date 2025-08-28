@@ -2,81 +2,206 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Flipper WebFlasher</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Momentum‑Style WebFlasher (Self‑Contained)</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg:#06101d; --card:#0b182a; --neon:#00e6ff; --muted:#8db3c1;
-    }
+    :root{--bg:#06101d;--card:#0b182a;--neon:#00e6ff;--muted:#8db3c1}
     *{box-sizing:border-box}
-    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff;}
-    header{padding:22px;text-align:center;border-bottom:1px solid rgba(0,230,255,0.08)}
+    body{margin:0;font-family:"JetBrains Mono",monospace;background:linear-gradient(180deg,#02061a,#071423);color:#e4f7ff}
+    header{padding:26px;text-align:center;border-bottom:1px solid rgba(0,230,255,.08)}
     h1{font-family:Orbitron,sans-serif;letter-spacing:.08em;color:var(--neon);margin:0;font-size:26px}
-    main{max-width:700px;margin:40px auto;padding:20px}
-    .card{background:linear-gradient(180deg,rgba(10,20,35,0.95),rgba(5,10,20,0.9));padding:24px;border-radius:16px;border:1px solid rgba(0,230,255,0.1);box-shadow:0 0 18px rgba(0,230,255,0.1)}
-    label{font-size:14px;color:var(--muted);display:block;margin-bottom:8px}
-    input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px dashed rgba(0,230,255,0.2);background:transparent;color:inherit;cursor:pointer}
-    button{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.06em;padding:12px 18px;border-radius:10px;border:1px solid rgba(0,230,255,0.2);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer;transition:all .2s}
+    main{max-width:1000px;margin:34px auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:18px}
+    .card{background:linear-gradient(180deg,rgba(10,20,35,.95),rgba(5,10,20,.9));padding:22px;border-radius:16px;border:1px solid rgba(0,230,255,.1);box-shadow:0 0 18px rgba(0,230,255,.08)}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
+    input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px dashed rgba(0,230,255,.2);background:transparent;color:inherit;cursor:pointer}
+    button{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.06em;padding:12px 16px;border-radius:10px;border:1px solid rgba(0,230,255,.2);background:linear-gradient(180deg,#07263a,#052033);color:inherit;cursor:pointer;transition:all .15s}
     button:hover{box-shadow:0 0 12px var(--neon)}
-    .console{height:220px;overflow:auto;padding:12px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,0.1);font-size:13px;line-height:1.4}
-    .progress{height:14px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,0.15);margin:16px 0}
+    .row{display:flex;gap:10px;margin-top:12px}
+    .row>button{flex:1}
+    .console{height:260px;overflow:auto;padding:12px;border-radius:10px;background:#020612;border:1px solid rgba(0,230,255,.1);font-size:13px;line-height:1.4;white-space:pre-wrap}
+    .filelist{height:260px;overflow:auto;padding:12px;border-radius:10px;background:#031126;border:1px solid rgba(0,230,255,.06);font-size:13px}
+    .progress{height:14px;border-radius:999px;background:#081825;overflow:hidden;border:1px solid rgba(0,230,255,.15);margin:14px 0}
     .bar{height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9b5cff)}
+    @media (max-width:1000px){main{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <header>
-    <h1>Flipper WebFlasher</h1>
+    <h1>WebFlasher (Momentum‑Style)</h1>
   </header>
 
   <main>
     <section class="card">
-      <label for="fw">Firmware wählen (.zip / .tgz)</label>
+      <label for="fw">Firmware‑Paket wählen (.zip / .tgz)</label>
       <input id="fw" type="file" accept=".zip,.tgz,.tar.gz" />
 
-      <div style="margin-top:16px">
-        <button id="connect" style="width:100%">🔌 Gerät verbinden & Flash starten</button>
+      <div class="row">
+        <button id="connect">🔌 Gerät verbinden</button>
+        <button id="flash">⚡ Flashen</button>
       </div>
 
       <div class="progress"><div id="bar" class="bar"></div></div>
-      <div class="console" id="log">Bereit.</div>
+      <div id="log" class="console">Bereit.</div>
     </section>
+
+    <aside class="card">
+      <h3 style="margin:0 0 8px 0">Paketinhalt</h3>
+      <div id="files" class="filelist">(keine Datei geladen)</div>
+    </aside>
   </main>
 
-  <script>
-    const logEl = document.getElementById("log");
-    const barEl = document.getElementById("bar");
-    const fwInput = document.getElementById("fw");
+  <!-- JS libs: JSZip for .zip, pako for gzip, tiny tar parser for .tar -->
+  <script type="module">
+    import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+    import pako from "https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs";
 
-    function log(msg){
-      logEl.innerText += "\n" + msg;
-      logEl.scrollTop = logEl.scrollHeight;
+    // ===== UI helpers =====
+    const logEl = document.getElementById('log');
+    const barEl = document.getElementById('bar');
+    const filesEl = document.getElementById('files');
+    const fwInput = document.getElementById('fw');
+    let selectedEntries = []; // {path, data:Uint8Array}
+
+    const log = (m) => { logEl.textContent += "\n" + m; logEl.scrollTop = logEl.scrollHeight; };
+    const setProgress = (p) => { barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; };
+
+    // ===== .tar parser (minimal) =====
+    function parseTar(u8){
+      const files = [];
+      const block = 512;
+      let off = 0;
+      const text = new TextDecoder();
+      function readString(arr){ return text.decode(arr).replace(/\0+$/, '').trim(); }
+      while (off + block <= u8.length){
+        const header = u8.subarray(off, off+block);
+        const name = readString(header.subarray(0,100));
+        if(!name){
+          // two consecutive zero blocks => end
+          const allZero = header.every(b=>b===0);
+          if(allZero) break;
+          off += block; continue;
+        }
+        const sizeOct = readString(header.subarray(124, 136));
+        const size = parseInt(sizeOct, 8) || 0;
+        off += block;
+        const data = u8.subarray(off, off+size);
+        files.push({ path: name, data: new Uint8Array(data) });
+        off += Math.ceil(size / block) * block;
+      }
+      return files;
     }
 
-    fwInput.addEventListener("change", () => {
-      if(fwInput.files.length){
-        log("📦 Firmware-Datei ausgewählt: " + fwInput.files[0].name);
-        barEl.style.width = "20%";
+    // ===== Read archive (.zip or .tgz/.tar.gz or .tar) =====
+    async function readArchive(file){
+      const name = file.name.toLowerCase();
+      const buf = new Uint8Array(await file.arrayBuffer());
+      if(name.endsWith('.zip')){
+        const zip = await JSZip.loadAsync(buf);
+        const out = [];
+        const entries = Object.keys(zip.files);
+        for(const k of entries){
+          const e = zip.files[k];
+          if(e.dir) continue;
+          const data = new Uint8Array(await e.async('uint8array'));
+          out.push({ path: k, data });
+        }
+        return out;
+      }
+      if(name.endsWith('.tgz') || name.endsWith('.tar.gz')){
+        const ungz = pako.ungzip(buf);
+        return parseTar(ungz);
+      }
+      if(name.endsWith('.tar')){
+        return parseTar(buf);
+      }
+      throw new Error('Nicht unterstütztes Format');
+    }
+
+    // ===== UI: choose firmware =====
+    fwInput.addEventListener('change', async () => {
+      filesEl.textContent = 'Lade...';
+      setProgress(5);
+      try{
+        const file = fwInput.files[0];
+        selectedEntries = await readArchive(file);
+        if(!selectedEntries.length){
+          filesEl.textContent = '(leer)'; setProgress(0); return;
+        }
+        selectedEntries.sort((a,b)=> a.path.localeCompare(b.path));
+        const lines = selectedEntries.map(e=> `${e.path}  •  ${e.data.length} bytes`);
+        filesEl.textContent = lines.join('\n');
+        log(`📦 ${selectedEntries.length} Dateien geladen`);
+        setProgress(15);
+      }catch(err){
+        filesEl.textContent = 'Fehler beim Laden: ' + err;
+        log('❌ Fehler beim Entpacken: ' + err.message);
+        setProgress(0);
       }
     });
 
-    document.getElementById("connect").addEventListener("click", async () => {
+    // ===== WebSerial connect =====
+    let port, reader, writer;
+    async function connect(){
+      if(port) return port;
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      writer = port.writable.getWriter();
+      reader = port.readable.getReader();
+      log('✅ Verbunden mit Gerät');
+      return port;
+    }
+
+    document.getElementById('connect').addEventListener('click', async ()=>{
+      try{ await connect(); }catch(e){ log('❌ Verbinden fehlgeschlagen: '+e.message); }
+    });
+
+    // ===== Simple framed send protocol =====
+    // PROTOKOLL (geräteseitig benötigt ein einfacher Empfänger):
+    //  "FILE <path> <size>\n"  -> dann genau <size> Bytes Rohdaten -> "\nEOF\n" -> Gerät antwortet mit "OK\n" oder "ERR <msg>\n"
+    async function sendFramed(path, u8){
+      const enc = new TextEncoder();
+      await writer.write(enc.encode(`FILE ${path} ${u8.length}\n`));
+      const chunk = 4096;
+      let sent = 0;
+      while (sent < u8.length){
+        const end = Math.min(sent + chunk, u8.length);
+        await writer.write(u8.subarray(sent, end));
+        sent = end;
+        setProgress(20 + Math.floor(70 * (sent / u8.length)));
+      }
+      await writer.write(enc.encode(`\nEOF\n`));
+      // wait for OK/ERR
+      const dec = new TextDecoder();
+      let text = '';
+      for(;;){
+        const { value, done } = await reader.read();
+        if(done) break;
+        if(value) { text += dec.decode(value); if(/\b(OK|ERR)/.test(text)) break; }
+      }
+      if(!/\bOK/.test(text)) throw new Error('Gerät meldet Fehler: '+text.trim());
+    }
+
+    async function flashAll(){
+      if(!fwInput.files.length) { log('⚠️ Bitte zuerst eine Firmware-Datei wählen.'); return; }
+      if(!selectedEntries.length){ log('⚠️ Paket ist leer.'); return; }
       try {
-        const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
-        log("✅ Verbunden mit Gerät");
-
-        const writer = port.writable.getWriter();
-        log("📤 Sende Testdaten...");
-        const data = new TextEncoder().encode("Hello Flipper!\n");
-        await writer.write(data);
-        writer.releaseLock();
-
-        log("✅ Testdaten gesendet");
-        barEl.style.width = "100%";
+        await connect();
+        let i = 0;
+        for(const e of selectedEntries){
+          i++;
+          log(`➡️  Sende ${e.path} (${e.data.length} bytes)`);
+          await sendFramed(e.path, e.data);
+          log(`✅  ${e.path} übertragen (${i}/${selectedEntries.length})`);
+        }
+        setProgress(100);
+        log('🎉 Flash‑Vorgang abgeschlossen');
       } catch(err){
-        log("❌ Fehler: " + err);
+        log('❌ Flash‑Fehler: ' + err.message);
       }
-    });
+    }
+
+    document.getElementById('flash').addEventListener('click', flashAll);
   </script>
 </body>
 </html>
