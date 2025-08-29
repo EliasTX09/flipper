@@ -1,106 +1,96 @@
-// notoga.js – Browser Build
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Flipper Zero Updater</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
+    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; background: #444; color: #fff; }
+    button:hover { opacity: 0.8; }
+    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
+    #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>⚡ Flipper Zero Updater</h1>
 
-// interne Variablen
-let device = null;
-let writer = null;
-let reader = null;
+  <input type="file" id="fwFile" />
+  <br><br>
 
-// Event Emitter (ganz simpel)
-const emitter = {
-  events: {},
-  on(ev, fn) {
-    (this.events[ev] || (this.events[ev] = [])).push(fn);
-  },
-  emit(ev, data) {
-    (this.events[ev] || []).forEach(fn => fn(data));
-  }
-};
+  <button id="connectBtn">🔌 Connect</button>
+  <button id="disconnectBtn">❌ Disconnect</button>
+  <button id="rebootBtn">🔄 Reboot</button>
+  <button id="updateBtn">⬆️ Update</button>
 
-// ---- Serial Funktionen ----
-async function connect() {
-  if (!("serial" in navigator)) throw new Error("WebSerial wird nicht unterstützt!");
-  device = await navigator.serial.requestPort();
-  await device.open({ baudRate: 115200 });
+  <div id="progress"><div id="bar"></div></div>
+  <h3>Logs</h3>
+  <div id="log"></div>
 
-  reader = device.readable.getReader();
-  writer = device.writable.getWriter();
+  <!-- notoga.js aus deinem Repo laden -->
+  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js"></script>
 
-  listen();
-  emitter.emit("connect");
-  return true;
-}
+  <script>
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const fwFileInput = document.getElementById("fwFile");
 
-async function disconnect() {
-  if (!device) return;
-  try {
-    if (reader) {
-      await reader.cancel();
-      reader.releaseLock();
+    function log(msg) {
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
     }
-    if (writer) {
-      await writer.close();
-      writer.releaseLock();
+    function setProgress(p) {
+      barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
-    await device.close();
-  } catch (e) {
-    console.error(e);
-  }
-  emitter.emit("disconnect");
-  device = null;
-}
 
-// liest kontinuierlich vom Flipper
-async function listen() {
-  try {
-    while (device && reader) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value) emitter.emit("data", new TextDecoder().decode(value));
-    }
-  } catch (e) {
-    console.warn("Reader stopped:", e);
-  }
-}
+    document.getElementById("connectBtn").addEventListener("click", async () => {
+      try {
+        await window.flipper.connect();
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
+      }
+    });
 
-// schreiben
-async function write(data) {
-  if (!writer) throw new Error("Not connected");
-  const enc = new TextEncoder();
-  await writer.write(enc.encode(data));
-}
+    document.getElementById("disconnectBtn").addEventListener("click", async () => {
+      try {
+        await window.flipper.disconnect();
+        log("✅ Verbindung getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
+      }
+    });
 
-async function read() {
-  // primitive read, besser über events nutzen
-  return new Promise(res => {
-    emitter.on("data", d => res(d));
-  });
-}
+    document.getElementById("rebootBtn").addEventListener("click", async () => {
+      try {
+        await window.flipper.commands.system.reboot("os");
+        log("🔄 Reboot gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
+      }
+    });
 
-// Dummy-RPC Commands (nur Platzhalter, später mit flipper-rpc.js ersetzen)
-const commands = {
-  system: {
-    async reboot(mode) {
-      await write("reboot " + (mode || "") + "\r");
-      emitter.emit("log", "Reboot Command gesendet");
-    }
-  },
-  storage: {
-    async write(path, buffer) {
-      emitter.emit("log", `(${buffer.length} bytes würden nach ${path} gesendet)`);
-      // TODO: Echt implementieren via RPC
-    }
-  }
-};
+    document.getElementById("updateBtn").addEventListener("click", async () => {
+      if (!fwFileInput.files.length) {
+        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
+        return;
+      }
+      const file = fwFileInput.files[0];
+      log("📦 Lade Firmware: " + file.name);
 
-// ---- window exportieren ----
-if (typeof window !== "undefined") {
-  window.flipper = {
-    connect,
-    disconnect,
-    write,
-    read,
-    emitter,
-    commands
-  };
-  console.log("✅ notoga.js geladen, window.flipper verfügbar:", window.flipper);
-}
+      try {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        log("➡️ Sende Firmware an Flipper...");
+        setProgress(0);
+
+        await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
+
+        setProgress(100);
+        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+      } catch (err) {
+        log("❌ Fehler beim Update: " + err);
+      }
+    });
+  </script>
+</body>
+</html>
