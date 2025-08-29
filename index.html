@@ -92,5 +92,39 @@
       }
     });
   </script>
+<script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/notoga.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("📢 window.flipper beim DOM-Ready:", window.flipper);
+
+    document.getElementById("btnConnect").onclick = async () => {
+      try {
+        await window.flipper.connect();
+        console.log("✅ Verbunden");
+      } catch (err) {
+        console.error("❌ Fehler beim Verbinden:", err);
+      }
+    };
+
+    document.getElementById("btnDisconnect").onclick = async () => {
+      try {
+        await window.flipper.disconnect();
+        console.log("✅ Getrennt");
+      } catch (err) {
+        console.error("❌ Fehler beim Trennen:", err);
+      }
+    };
+
+    document.getElementById("btnReboot").onclick = async () => {
+      try {
+        await window.flipper.commands.system.reboot("os");
+        console.log("✅ Reboot gesendet");
+      } catch (err) {
+        console.error("❌ Fehler beim Reboot:", err);
+      }
+    };
+  });
+</script>
+
 </body>
 </html>
