@@ -1,129 +1,69 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>Flipper Zero Updater (notoga only)</title>
+  <meta charset="UTF-8">
+  <title>Flipper Zero Updater</title>
   <style>
-    body { font-family: system-ui, Arial; background:#111; color:#eee; padding:20px }
-    button { margin:4px; padding:10px 16px; border-radius:8px; border:0; cursor:pointer }
-    #log { background:#1f1f1f; border-radius:8px; padding:10px; height:280px; overflow:auto; white-space:pre-wrap }
-    #progress { background:#333; border-radius:8px; height:14px; margin:10px 0 }
-    #bar { background:lime; height:100%; width:0%; border-radius:8px }
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
+    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
+    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>⚡ Flipper Updater</h1>
+  <h1>⚡ Flipper Zero Updater</h1>
 
-  <input type="file" id="fwFile" />
-  <div style="margin:10px 0">
-    <button id="connectBtn">🔌 Connect</button>
-    <button id="disconnectBtn">❌ Disconnect</button>
-    <button id="rebootOsBtn">🔄 Reboot OS</button>
-    <button id="rebootDfuBtn">🧰 Reboot DFU</button>
-    <button id="updateBtn">⬆️ Update</button>
-  </div>
+  <button id="connectBtn">🔌 Connect</button>
+  <button id="disconnectBtn">❌ Disconnect</button>
+  <button id="rebootBtn">🔄 Reboot</button>
 
-  <div id="progress"><div id="bar"></div></div>
+  <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- NUR EIN notoga.js! -->
-  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js"></script>
+  <!-- Lade notoga.js lokal -->
+  <script src="notoga.js"></script>
+
   <script>
     const logEl = document.getElementById("log");
-    const barEl = document.getElementById("bar");
-    const fileEl = document.getElementById("fwFile");
+    function log(msg) {
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
 
-    function log(m){ logEl.textContent += (logEl.textContent ? "\n" : "") + m; logEl.scrollTop = logEl.scrollHeight; }
-    function setProgress(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + "%" }
-
-    let transport = null;
-
-    // Progress aus der notoga-pipeline (512B Chunks) :contentReference[oaicite:5]{index=5}
-    window.flipper.emitter.on("storageWriteRequest/progress", ({progress,total})=>{
-      const pct = Math.floor(progress / total * 100);
-      setProgress(pct);
+    // Prüfen, ob notoga.js geladen wurde
+    window.addEventListener("load", () => {
+      if (window.flipper) {
+        log("✅ notoga.js geladen, window.flipper verfügbar");
+        console.log("DEBUG:", window.flipper);
+      } else {
+        log("❌ notoga.js NICHT geladen oder window.flipper fehlt!");
+      }
     });
 
-    // Disconnect-Event (kommt z.B. bei Reboot/Update) 
-    window.flipper.emitter.on("disconnect", ()=>{
-      log("🔌 Gerät getrennt (bei Reboot/Update normal).");
-    });
-
-    // CONNECT -> WebSerial + RPC-Session öffnen (start_rpc_session) :contentReference[oaicite:6]{index=6}
+    // Buttons
     document.getElementById("connectBtn").onclick = async () => {
       try {
-        transport = await window.flipper.connect();             // WebSerial transport
-        await window.flipper.commands.startRpcSession(transport); // "start_rpc_session" + Ping
-        log("✅ Verbunden & RPC bereit");
-      } catch (e) {
-        log("❌ Connect-Fehler: " + e);
+        await window.flipper.connect();
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
       }
     };
 
-    // DISCONNECT -> RPC sauber schließen
     document.getElementById("disconnectBtn").onclick = async () => {
       try {
-        await window.flipper.commands.stopRpcSession();
         await window.flipper.disconnect();
-        log("👋 Getrennt");
-      } catch (e) {
-        log("❌ Disconnect-Fehler: " + e);
+        log("✅ Getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
       }
     };
 
-    // Reboot OS / DFU via systemRebootRequest(mode) :contentReference[oaicite:7]{index=7}
-    document.getElementById("rebootOsBtn").onclick = async () => {
+    document.getElementById("rebootBtn").onclick = async () => {
       try {
-        await window.flipper.commands.system.reboot("OS");
-        log("🔄 Reboot OS gesendet (Gerät trennt gleich)");
-      } catch (e) {
-        log("❌ Reboot-Fehler: " + e);
-      }
-    };
-    document.getElementById("rebootDfuBtn").onclick = async () => {
-      try {
-        await window.flipper.commands.system.reboot("DFU");
-        log("🧰 DFU-Reboot gesendet (zum Flashen per DFU)");
-      } catch (e) {
-        log("❌ DFU-Fehler: " + e);
-      }
-    };
-
-    // UPDATE: .fuf direkt oder .tgz -> entpacken -> update.fuf -> systemUpdateRequest 
-    document.getElementById("updateBtn").onclick = async () => {
-      if (!fileEl.files.length) return log("⚠️ Bitte Firmware-Datei wählen (.fuf oder .tgz)");
-      if (!transport) return log("⚠️ Erst verbinden!");
-
-      const f = fileEl.files[0];
-      const dest = "/ext/update/" + f.name;
-
-      try {
-        setProgress(0);
-        log("📦 Lade Firmware: " + f.name);
-
-        const buf = new Uint8Array(await f.arrayBuffer());
-
-        // 1) Datei übertragen (512-Byte-Chunks) :contentReference[oaicite:9]{index=9}
-        await window.flipper.commands.storage.write(dest, buf);
-        log("➡️ Upload fertig: " + dest);
-
-        let manifest = dest;
-
-        // 2) Falls .tgz: entpacken nach /ext/update und Manifest-Pfad umbiegen :contentReference[oaicite:10]{index=10}
-        if (f.name.endsWith(".tgz") || f.name.endsWith(".tar") ) {
-          log("🗜️ Entpacke Archiv nach /ext/update …");
-          await window.flipper.commands.storage.tarExtract(dest, "/ext/update");
-          manifest = "/ext/update/update.fuf";
-        }
-
-        // 3) Update anstoßen (systemUpdateRequest) -> Gerät trennt sich selbständig :contentReference[oaicite:11]{index=11}
-        log("🚀 Starte Update über Manifest: " + manifest);
-        await window.flipper.commands.system.update(manifest);
-        log("✅ Update-Request gesendet – Flipper startet den Updater und trennt die Verbindung.");
-      } catch (e) {
-        log("❌ Update-Fehler: " + e);
-      } finally {
-        setProgress(100);
+        await window.flipper.commands.system.reboot("os");
+        log("🔄 Reboot-Befehl gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
       }
     };
   </script>
