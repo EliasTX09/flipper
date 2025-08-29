@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Ukodater</title>
+  <title>Flipper Zero Updater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -27,13 +27,13 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- notoga.js direkt von GitHub laden -->
-  <script src="https://eliastx09.github.io/flipper/notoga.js"></script>
-
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
     const fwFileInput = document.getElementById("fwFile");
+
+    let port = null;
+    let reader, writer;
 
     function log(msg) {
       logEl.textContent += "\n" + msg;
@@ -43,33 +43,44 @@
       barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
+    // Verbinden
     document.getElementById("connectBtn").addEventListener("click", async () => {
       try {
-        await window.flipper.connect();
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
         log("✅ Verbunden mit Flipper");
       } catch (err) {
         log("❌ Fehler beim Verbinden: " + err);
       }
     });
 
+    // Trennen
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
       try {
-        await window.flipper.disconnect();
+        if (reader) { await reader.cancel(); reader.releaseLock(); }
+        if (writer) { writer.releaseLock(); }
+        if (port) { await port.close(); port = null; }
         log("❌ Getrennt");
       } catch (err) {
         log("❌ Fehler beim Trennen: " + err);
       }
     });
 
+    // Reboot
     document.getElementById("rebootBtn").addEventListener("click", async () => {
       try {
-        await window.flipper.commands.system.reboot("os");
-        log("🔄 Reboot gesendet");
+        if (!writer) throw new Error("Keine Verbindung");
+        const data = new TextEncoder().encode("reboot\r\n");
+        await writer.write(data);
+        log("🔄 Reboot-Befehl gesendet");
       } catch (err) {
         log("❌ Fehler beim Reboot: " + err);
       }
     });
 
+    // Update
     document.getElementById("updateBtn").addEventListener("click", async () => {
       if (!fwFileInput.files.length) {
         log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
@@ -79,21 +90,23 @@
       log("📦 Lade Firmware: " + file.name);
 
       try {
+        if (!writer) throw new Error("Keine Verbindung");
+
         const buf = new Uint8Array(await file.arrayBuffer());
         log("➡️ Sende Firmware an Flipper...");
         setProgress(0);
 
-        await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
+        const chunkSize = 512;
+        for (let i = 0; i < buf.length; i += chunkSize) {
+          const chunk = buf.slice(i, i + chunkSize);
+          await writer.write(chunk);
+          setProgress(((i + chunk.length) / buf.length) * 100);
+        }
 
-        setProgress(100);
-        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+        log("✅ Upload abgeschlossen. Flipper sollte Update starten.");
       } catch (err) {
         log("❌ Fehler beim Update: " + err);
       }
-    });
-
-    document.addEventListener("DOMContentLoaded", () => {
-      console.log("📢 window.flipper beim DOM-Ready:", window.flipper);
     });
   </script>
 </body>
