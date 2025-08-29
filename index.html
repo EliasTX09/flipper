@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Updater (Standalone)</title>
+  <title>⚡ Flipper Zero Updater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -27,90 +27,88 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-<script>
-  const logEl = document.getElementById("log");
-  const barEl = document.getElementById("bar");
-  const fwFileInput = document.getElementById("fwFile");
+  <script>
+    let port, reader, writer;
 
-  let port, reader, writer;
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const fwFileInput = document.getElementById("fwFile");
 
-  function log(msg) {
-    logEl.textContent += "\n" + msg;
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-  function setProgress(p) {
-    barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
-  }
-
-  // -------- CONNECT ----------
-  async function connectFlipper() {
-    try {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
-      writer = port.writable.getWriter();
-      reader = port.readable.getReader();
-      log("✅ Verbunden mit Flipper");
-    } catch (err) {
-      log("❌ Fehler beim Verbinden: " + err);
+    function log(msg) {
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(msg);
     }
-  }
-
-  // -------- DISCONNECT ----------
-  async function disconnectFlipper() {
-    try {
-      if (reader) { await reader.cancel(); reader.releaseLock(); }
-      if (writer) { writer.releaseLock(); }
-      if (port) { await port.close(); }
-      log("❌ Getrennt");
-    } catch (err) {
-      log("❌ Fehler beim Trennen: " + err);
+    function setProgress(p) {
+      barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
-  }
 
-  // -------- REBOOT ----------
-  async function rebootFlipper() {
-    try {
-      const rebootCmd = new TextEncoder().encode("system_reboot\r\n");
-      await writer.write(rebootCmd);
-      log("🔄 Reboot-Befehl gesendet");
-    } catch (err) {
-      log("❌ Fehler beim Reboot: " + err);
-    }
-  }
-
-  // -------- UPDATE ----------
-  async function updateFlipper() {
-    if (!fwFileInput.files.length) {
-      log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
-      return;
-    }
-    const file = fwFileInput.files[0];
-    log("📦 Lade Firmware: " + file.name);
-
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      log("➡️ Sende Firmware an Flipper...");
-      setProgress(0);
-
-      const chunkSize = 512;
-      for (let i = 0; i < buf.length; i += chunkSize) {
-        const chunk = buf.slice(i, i + chunkSize);
-        await writer.write(chunk);
-        setProgress(((i + chunk.length) / buf.length) * 100);
+    async function connectFlipper() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
       }
-
-      log("✅ Upload abgeschlossen. Flipper sollte jetzt ins Update gehen.");
-    } catch (err) {
-      log("❌ Fehler beim Update: " + err);
     }
-  }
 
-  // -------- BUTTONS ----------
-  document.getElementById("connectBtn").addEventListener("click", connectFlipper);
-  document.getElementById("disconnectBtn").addEventListener("click", disconnectFlipper);
-  document.getElementById("rebootBtn").addEventListener("click", rebootFlipper);
-  document.getElementById("updateBtn").addEventListener("click", updateFlipper);
-</script>
+    async function disconnectFlipper() {
+      try {
+        if (reader) { await reader.cancel(); reader.releaseLock(); }
+        if (writer) writer.releaseLock();
+        await port.close();
+        log("❌ Verbindung getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
+      }
+    }
 
+    async function rebootFlipper() {
+      try {
+        // Sende simplen Reboot-Befehl (CLI)
+        const data = new TextEncoder().encode("reboot\r");
+        await writer.write(data);
+        log("🔄 Reboot-Befehl gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
+      }
+    }
+
+    async function updateFirmware() {
+      if (!fwFileInput.files.length) {
+        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
+        return;
+      }
+      const file = fwFileInput.files[0];
+      log("📦 Lade Firmware: " + file.name);
+
+      try {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        log("➡️ Sende Firmware an Flipper...");
+        setProgress(0);
+
+        const chunkSize = 512;
+        for (let i = 0; i < buf.length; i += chunkSize) {
+          const chunk = buf.slice(i, i + chunkSize);
+          await writer.write(chunk);
+          setProgress(Math.round((i / buf.length) * 100));
+        }
+
+        setProgress(100);
+        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+      } catch (err) {
+        log("❌ Fehler beim Update: " + err);
+      }
+    }
+
+    // Buttons binden
+    document.getElementById("connectBtn").addEventListener("click", connectFlipper);
+    document.getElementById("disconnectBtn").addEventListener("click", disconnectFlipper);
+    document.getElementById("rebootBtn").addEventListener("click", rebootFlipper);
+    document.getElementById("updateBtn").addEventListener("click", updateFirmware);
+  </script>
 </body>
 </html>
