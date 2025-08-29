@@ -27,14 +27,13 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <script type="module">
-    import { connect, disconnect, commands } from "https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js";
+  <!-- notoga.js direkt von GitHub laden -->
+  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js"></script>
 
+  <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
     const fwFileInput = document.getElementById("fwFile");
-
-    let flipper = null;
 
     function log(msg) {
       logEl.textContent += "\n" + msg;
@@ -46,7 +45,7 @@
 
     document.getElementById("connectBtn").addEventListener("click", async () => {
       try {
-        flipper = await connect();
+        await window.flipper.connect();
         log("✅ Verbunden mit Flipper");
       } catch (err) {
         log("❌ Fehler beim Verbinden: " + err);
@@ -55,7 +54,7 @@
 
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
       try {
-        await disconnect();
+        await window.flipper.disconnect();
         log("❌ Getrennt");
       } catch (err) {
         log("❌ Fehler beim Trennen: " + err);
@@ -64,7 +63,7 @@
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
       try {
-        await commands.system.reboot("os"); // oder "dfu"
+        await window.flipper.commands.system.reboot("os"); // echtes RPC
         log("🔄 Reboot gesendet");
       } catch (err) {
         log("❌ Fehler beim Reboot: " + err);
@@ -84,8 +83,7 @@
         log("➡️ Sende Firmware an Flipper...");
         setProgress(0);
 
-        // Beispiel: ins Storage schreiben (Update-Mechanismus hängt von deinem Build ab)
-        await commands.storage.write("/ext/update/" + file.name, buf);
+        await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
 
         setProgress(100);
         log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
