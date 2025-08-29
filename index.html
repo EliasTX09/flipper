@@ -1,206 +1,98 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper WebFlasher</title>
+  <meta charset="UTF-8">
+  <title>Flipper Zero Updater</title>
   <style>
-    body{margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
-    header{text-align:center;padding:20px}
-    h1{color:#00e6ff}
-    main{display:flex;gap:16px;max-width:900px;margin:20px auto;flex-wrap:wrap}
-    .card{background:#0b182a;padding:16px;border-radius:8px;flex:1;min-width:320px}
-    .console,.filelist{background:#020612;padding:8px;border-radius:6px;height:180px;overflow:auto;white-space:pre-wrap}
-    .progress{background:#081825;height:10px;border-radius:6px;margin:8px 0}
-    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
-    button{margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer;border:0}
-    button:hover{background:#13314b}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    small.muted{opacity:.7}
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
+    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
+    button:hover { opacity: 0.8; }
+    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
+    #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Flipper WebFscdwlasher</h1>
-    <small class="muted">Benötigt Chrome/Edge (Desktop) über HTTPS (GitHub Pages).</small>
-  </header>
+  <h1>⚡ Flipper Zero Updater</h1>
 
-  <main>
-    <div class="card">
-      <div class="row">
-        <input type="file" id="fw" accept=".zip,.tgz,.tar.gz" />
-        <button id="connect">🔌 Verbinden</button>
-        <button id="flash" disabled>⚡ Upload</button>
-        <button id="reboot" disabled>🔄 Reboot</button>
-      </div>
-      <div class="progress"><div id="bar" class="bar"></div></div>
-      <div id="log" class="console">Bereit.</div>
-    </div>
+  <input type="file" id="fwFile" />
+  <br><br>
 
-    <div class="card">
-      <h3>Inhalt:</h3>
-      <div id="files" class="filelist">(keine Datei)</div>
-    </div>
-  </main>
+  <button id="connectBtn">🔌 Connect</button>
+  <button id="disconnectBtn">❌ Disconnect</button>
+  <button id="rebootBtn">🔄 Reboot</button>
+  <button id="updateBtn">⬆️ Update</button>
 
-  <!-- Libs -->
-  <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <div id="progress"><div id="bar"></div></div>
+  <h3>Logs</h3>
+  <div id="log"></div>
 
-  <!-- WICHTIG: Eigene Dateien vom gleichen Origin laden (Repo selbst), NICHT raw.githubusercontent -->
-  <script defer src="notoga.js"></script>
-  <script defer src="./flipper-rpc.js"></script>
+  <script type="module">
+    import { connect, disconnect, commands } from "https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js";
 
-  <script>
-  // ===== Mini-Helper =====
-  const $ = sel => document.querySelector(sel);
-  const logEl = $('#log');
-  const filesEl = $('#files');
-  const barEl = $('#bar');
-  const btnConnect = $('#connect');
-  const btnFlash = $('#flash');
-  const btnReboot = $('#reboot');
-  const fwInput = $('#fw');
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const fwFileInput = document.getElementById("fwFile");
 
-  let connected = false;
-  let selectedEntries = [];
+    let flipper = null;
 
-  function log(m){ logEl.textContent += "\\n" + m; logEl.scrollTop = logEl.scrollHeight; }
-  function setProgress(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
-  function updateButtons(){
-    btnFlash.disabled  = !(connected && selectedEntries.length>0);
-    btnReboot.disabled = !connected;
-  }
-
-  // ===== TAR Parser =====
-  function parseTar(u8){
-    const files=[]; const block=512; let off=0;
-    const dec=new TextDecoder(); const readStr=a=>dec.decode(a).replace(/\\0+$/,'').trim();
-    while(off+block<=u8.length){
-      const h=u8.subarray(off,off+block);
-      const name=readStr(h.subarray(0,100));
-      if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
-      const size=parseInt(readStr(h.subarray(124,136)),8)||0; off+=block;
-      const data=u8.subarray(off,off+size);
-      files.push({path:name,data:new Uint8Array(data)});
-      off+=Math.ceil(size/block)*block;
+    function log(msg) {
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
     }
-    return files;
-  }
-
-  // ===== Self-Check =====
-  window.addEventListener('DOMContentLoaded', () => {
-    if (!('serial' in navigator)) {
-      log('❌ WebSerial nicht verfügbar. Nutze Chrome/Edge (Desktop) über HTTPS.');
-    } else {
-      log('✅ WebSerial verfügbar.');
+    function setProgress(p) {
+      barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
-    if (!window.flipper) {
-      log('❌ notoga.js nicht geladen. Prüfe, ob ./notoga.js im Repo liegt und korrekt served wird.');
-    } else {
-      log('✅ notoga.js geladen.');
-    }
-    if (typeof window.protobuf === 'undefined') {
-      log('ℹ️ flipper-rpc.js (protobuf) optional — für echten RPC notwendig.');
-    } else {
-      log('✅ flipper-rpc.js geladen.');
-    }
-  });
 
-  // ===== Datei laden / entpacken =====
-  fwInput.addEventListener('change', async () => {
-    filesEl.textContent = '(keine Datei)';
-    selectedEntries = [];
-    setProgress(0);
-    try{
-      const file = fwInput.files[0];
-      if(!file){ log('⚠️ Keine Datei gewählt.'); updateButtons(); return; }
-      log(`📦 Lade ${file.name} ...`);
-      const buf = new Uint8Array(await file.arrayBuffer());
-      let entries=[];
-      const name = file.name.toLowerCase();
-
-      if(name.endsWith('.zip')){
-        const zip = await JSZip.loadAsync(buf);
-        for(const k of Object.keys(zip.files)){
-          const e = zip.files[k]; if(e.dir) continue;
-          entries.push({path:k, data:new Uint8Array(await e.async('uint8array'))});
-        }
-      }else{
-        const tarData = (name.endsWith('.tgz')||name.endsWith('.tar.gz')) ? pako.ungzip(buf) : buf;
-        entries = parseTar(tarData);
+    document.getElementById("connectBtn").addEventListener("click", async () => {
+      try {
+        flipper = await connect();
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
       }
+    });
 
-      selectedEntries = entries;
-      filesEl.textContent = entries.map(e => `${e.path} • ${e.data.length} bytes`).join('\\n') || '(leer)';
-      log(`✅ ${entries.length} Datei(en) geladen`);
-    }catch(err){
-      log('❌ Fehler beim Entpacken: ' + err);
-      selectedEntries = [];
-    }
-    updateButtons();
-  });
+    document.getElementById("disconnectBtn").addEventListener("click", async () => {
+      try {
+        await disconnect();
+        log("❌ Getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
+      }
+    });
 
-  // ===== Verbinden =====
-  btnConnect.addEventListener('click', async () => {
-    try{
-      if(!('serial' in navigator)) {
-        log('❌ WebSerial nicht verfügbar (Chrome/Edge Desktop, HTTPS).');
+    document.getElementById("rebootBtn").addEventListener("click", async () => {
+      try {
+        await commands.system.reboot("os"); // oder "dfu"
+        log("🔄 Reboot gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
+      }
+    });
+
+    document.getElementById("updateBtn").addEventListener("click", async () => {
+      if (!fwFileInput.files.length) {
+        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
         return;
       }
-      if(!window.flipper || !window.flipper.connect){
-        log('❌ flipper-API fehlt (notoga.js nicht geladen).');
-        return;
+      const file = fwFileInput.files[0];
+      log("📦 Lade Firmware: " + file.name);
+
+      try {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        log("➡️ Sende Firmware an Flipper...");
+        setProgress(0);
+
+        // Beispiel: ins Storage schreiben (Update-Mechanismus hängt von deinem Build ab)
+        await commands.storage.write("/ext/update/" + file.name, buf);
+
+        setProgress(100);
+        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+      } catch (err) {
+        log("❌ Fehler beim Update: " + err);
       }
-      log('🔌 Öffne Port-Dialog ...');
-      await window.flipper.connect();                 // öffnet Port + baud 115200 (notoga.js)
-      await window.flipper.commands.startRpcSession();// Dummy "rpc started" → zeigt, dass JS läuft
-      connected = true;
-      log('✅ Verbunden & RPC gestartet');
-    }catch(e){
-      log('❌ Verbinden fehlgeschlagen: ' + e);
-      connected = false;
-    }
-    updateButtons();
-  });
-
-  // ===== Upload =====
-  btnFlash.addEventListener('click', async () => {
-    if(!connected){ log('⚠️ Erst verbinden.'); return; }
-    if(!selectedEntries.length){ log('⚠️ Keine Firmware geladen.'); return; }
-
-    try{
-      let i=0;
-      setProgress(10);
-      for(const e of selectedEntries){
-        i++;
-        log(`➡️ Upload ${e.path}`);
-        // Achtung: notoga.js hat aktuell nur eine Platzhalter-Implementierung!
-        await window.flipper.commands.storage.write('/ext/update/'+e.path, e.data);
-        log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
-        setProgress(10 + Math.floor(80*(i/selectedEntries.length)));
-      }
-      setProgress(100);
-      log('🎉 Upload abgeschlossen. (Echter RPC-Write braucht die richtige Implementierung!)');
-    }catch(err){
-      log('❌ Upload-Fehler: ' + err);
-    }
-  });
-
-  // ===== Reboot (UPDATE) =====
-  btnReboot.addEventListener('click', async () => {
-    if(!connected){ log('⚠️ Erst verbinden.'); return; }
-    try{
-      // Platzhalter: hier müsste die echte PB_Frame + PB_System.RebootRequest (mode=UPDATE) gesendet werden.
-      log('🔄 Reboot-Request (UPDATE) wird gesendet ...');
-      // TODO: implementiere echtes Senden über den geöffneten Serial-Port (nicht nur console.log)
-      log('ℹ️ Aktuell ist das nur ein Stub. Für echten Reboot brauchst du die echte RPC-Frame-Serialisierung.');
-    }catch(e){
-      log('❌ Reboot fehlgeschlagen: ' + e);
-    }
-  });
-
+    });
   </script>
 </body>
 </html>
