@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Updater</title>
+  <title>Flipper Zero Updfgfater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -19906,6 +19906,24 @@ module.exports = $root;
       console.log("✅ flipper-rpc.js geladen, window.flipper verfügbar:", window.flipper);
   }
   </script>
+<script>
+  if (typeof window.flipper === "undefined") {
+    try {
+      window.flipper = {
+        connect: typeof connect !== "undefined" ? connect : null,
+        disconnect: typeof disconnect !== "undefined" ? disconnect : null,
+        write: typeof write !== "undefined" ? write : null,
+        read: typeof read !== "undefined" ? read : null,
+        closeReader: typeof closeReader !== "undefined" ? closeReader : null,
+        commands: typeof commands !== "undefined" ? commands : null,
+        emitter: typeof emitter !== "undefined" ? emitter : null,
+      };
+      console.log("✅ Flipper API auf window gemappt:", window.flipper);
+    } catch (err) {
+      console.error("❌ Fehler beim Setup von window.flipper:", err);
+    }
+  }
+</script>
 
   <script>
     const logEl = document.getElementById("log");
