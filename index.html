@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Updater</title>
+  <title>Flipper Zero Ukodater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -18,7 +18,7 @@
   <input type="file" id="fwFile" />
   <br><br>
 
-  <button id="connectBtn">🔌 Conntfect</button>
+  <button id="connectBtn">🔌 Connect</button>
   <button id="disconnectBtn">❌ Disconnect</button>
   <button id="rebootBtn">🔄 Reboot</button>
   <button id="updateBtn">⬆️ Update</button>
@@ -28,7 +28,7 @@
   <div id="log"></div>
 
   <!-- notoga.js direkt von GitHub laden -->
-  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/main/notoga.js"></script>
+  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/notoga.js"></script>
 
   <script>
     const logEl = document.getElementById("log");
@@ -63,7 +63,7 @@
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
       try {
-        await window.flipper.commands.system.reboot("os"); // echtes RPC
+        await window.flipper.commands.system.reboot("os");
         log("🔄 Reboot gesendet");
       } catch (err) {
         log("❌ Fehler beim Reboot: " + err);
@@ -91,40 +91,10 @@
         log("❌ Fehler beim Update: " + err);
       }
     });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("📢 window.flipper beim DOM-Ready:", window.flipper);
+    });
   </script>
-<script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/notoga.js"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("📢 window.flipper beim DOM-Ready:", window.flipper);
-
-    document.getElementById("btnConnect").onclick = async () => {
-      try {
-        await window.flipper.connect();
-        console.log("✅ Verbunden");
-      } catch (err) {
-        console.error("❌ Fehler beim Verbinden:", err);
-      }
-    };
-
-    document.getElementById("btnDisconnect").onclick = async () => {
-      try {
-        await window.flipper.disconnect();
-        console.log("✅ Getrennt");
-      } catch (err) {
-        console.error("❌ Fehler beim Trennen:", err);
-      }
-    };
-
-    document.getElementById("btnReboot").onclick = async () => {
-      try {
-        await window.flipper.commands.system.reboot("os");
-        console.log("✅ Reboot gesendet");
-      } catch (err) {
-        console.error("❌ Fehler beim Reboot:", err);
-      }
-    };
-  });
-</script>
-
 </body>
 </html>
