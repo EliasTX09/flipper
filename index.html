@@ -1,72 +1,12 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Flipper Zero Updater</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
-    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
-    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
-  </style>
-</head>
-<body>
-  <h1>⚡ Flipper Zero Updater</h1>
-
-  <button id="connectBtn">🔌 Connect</button>
-  <button id="disconnectBtn">❌ Disconnect</button>
-  <button id="rebootBtn">🔄 Reboot</button>
-
-  <h3>Logs</h3>
-  <div id="log"></div>
-
-  <!-- Lade notoga.js lokal -->
-<script type="module" src="flipper-api.js"></script>
-
-
-  <script>
-    const logEl = document.getElementById("log");
-    function log(msg) {
-      logEl.textContent += "\n" + msg;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    // Prüfen, ob notoga.js geladen wurde
-    window.addEventListener("load", () => {
-      if (window.flipper) {
-        log("✅ notoga.js geladen, window.flipper verfügbar");
-        console.log("DEBUG:", window.flipper);
-      } else {
-        log("❌ notoga.js NICHT geladen oder window.flipper fehlt!");
-      }
-    });
-
-    // Buttons
-    document.getElementById("connectBtn").onclick = async () => {
-      try {
-        await window.flipper.connect();
-        log("✅ Verbunden mit Flipper");
-      } catch (err) {
-        log("❌ Fehler beim Verbinden: " + err);
-      }
-    };
-
-    document.getElementById("disconnectBtn").onclick = async () => {
-      try {
-        await window.flipper.disconnect();
-        log("✅ Getrennt");
-      } catch (err) {
-        log("❌ Fehler beim Trennen: " + err);
-      }
-    };
-
-    document.getElementById("rebootBtn").onclick = async () => {
-      try {
-        await window.flipper.commands.system.reboot("os");
-        log("🔄 Reboot-Befehl gesendet");
-      } catch (err) {
-        log("❌ Fehler beim Reboot: " + err);
-      }
-    };
-  </script>
-</body>
-</html>
+if (typeof window !== "undefined") {
+  window.flipper = {
+    connect: re,
+    disconnect: ie,
+    write: se,
+    read: ae,
+    closeReader: ue,
+    commands: oe,
+    emitter: a
+  };
+  console.log("✅ notoga.js geladen, window.flipper verfügbar:", window.flipper);
+}
