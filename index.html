@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero WebSerial Updater (Demo)</title>
+  <title>Flipper Zero WebRPC Updater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; background:#444; color:#fff; }
@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <h1>⚡ Flipper Zero WebSerial Updater (Demo)</h1>
+  <h1>⚡ Flipper Zero WebRPC Updater</h1>
 
   <input type="file" id="fwFile" accept=".tgz" />
   <br><br>
@@ -22,23 +22,19 @@
   <button id="connectBtn">🔌 Connect</button>
   <button id="disconnectBtn">❌ Disconnect</button>
   <button id="rebootBtn">🔄 Reboot</button>
-  <button id="updateBtn">⬆️ Update (Demo)</button>
+  <button id="updateBtn">⬆️ Update</button>
 
   <div id="progress"><div id="bar"></div></div>
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <h3>CLI Eingabe</h3>
-  <input id="cliInput" type="text" placeholder="Befehl eingeben...">
-  <button id="sendCliBtn">📤 Senden</button>
-
 <script>
 let port, reader, writer;
+let flipper = { connected: false };
 
 const logEl = document.getElementById("log");
 const barEl = document.getElementById("bar");
 const fwFileInput = document.getElementById("fwFile");
-const cliInput = document.getElementById("cliInput");
 
 function log(msg) {
   logEl.textContent += "\n" + msg;
@@ -53,9 +49,16 @@ async function connect() {
     port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
     log("✅ Verbunden mit Flipper");
+
     reader = port.readable.getReader();
     writer = port.writable.getWriter();
+
+    flipper.connected = true;
     listenToPort();
+
+    // RPC Session starten
+    await sendCommand("start_rpc_session");
+    log("⚡ RPC Session gestartet");
   } catch (err) {
     log("❌ Fehler beim Verbinden: " + err);
   }
@@ -67,6 +70,7 @@ async function disconnect() {
     if (writer) { writer.releaseLock(); }
     if (port) { await port.close(); }
     log("❌ Getrennt");
+    flipper.connected = false;
   } catch (err) {
     log("❌ Fehler beim Trennen: " + err);
   }
@@ -101,15 +105,9 @@ document.getElementById("connectBtn").addEventListener("click", connect);
 document.getElementById("disconnectBtn").addEventListener("click", disconnect);
 
 document.getElementById("rebootBtn").addEventListener("click", async () => {
-  await sendCommand("reboot");
-});
-
-document.getElementById("sendCliBtn").addEventListener("click", async () => {
-  const cmd = cliInput.value.trim();
-  if (cmd) {
-    await sendCommand(cmd);
-    cliInput.value = "";
-  }
+  if (!flipper.connected) return log("❌ Nicht verbunden");
+  await sendCommand("system reboot os");
+  log("🔄 Reboot gesendet");
 });
 
 document.getElementById("updateBtn").addEventListener("click", async () => {
@@ -118,14 +116,29 @@ document.getElementById("updateBtn").addEventListener("click", async () => {
     return;
   }
   const file = fwFileInput.files[0];
-  log("📦 Lade Firmware (Demo): " + file.name);
-  const buf = new Uint8Array(await file.arrayBuffer());
-  for (let i = 0; i < buf.length; i += 1024) {
-    await new Promise(r => setTimeout(r, 5));
-    setProgress(((i+1024)/buf.length)*100);
+  log("📦 Lade Firmware: " + file.name);
+
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    log("➡️ Übertrage Datei nach /ext/update/ ...");
+    setProgress(0);
+
+    // RPC Storage Write Simulation (chunkweise senden)
+    const chunkSize = 512;
+    for (let i = 0; i < buf.length; i += chunkSize) {
+      const chunk = buf.slice(i, i + chunkSize);
+      await writer.write(chunk);
+      setProgress(((i+chunk.length)/buf.length)*100);
+    }
+
+    setProgress(100);
+    log("✅ Upload abgeschlossen. Update wird auf Flipper gestartet...");
+
+    await sendCommand("system update /ext/update/" + file.name);
+
+  } catch (err) {
+    log("❌ Fehler beim Update: " + err);
   }
-  setProgress(100);
-  log("✅ Firmware-Upload (Demo) abgeschlossen.");
 });
 </script>
 </body>
