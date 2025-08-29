@@ -13,7 +13,7 @@
   </style>
 </head>
 <body>
-  <h1>⚡ Flipper Zero Updater</h1>
+  <h1>⚡ Flipper Zero Updater (Standalone)</h1>
 
   <input type="file" id="fwFile" />
   <br><br>
@@ -27,9 +27,9 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- Eingebettetes flipper-rpc.js -->
+  <!-- Eingebetteter flipper-rpc.js -->
   <script>
-  /*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
+/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
 "use strict";
 
 var $protobuf = require("protobufjs/minimal");
@@ -19057,7 +19057,7 @@ $root.PB_Gpio = (function() {
             if (!writer)
                 writer = $Writer.create();
             if (message.mode != null && Object.hasOwnProperty.call(message, "mode"))
-                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.mode);<
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.mode);
             return writer;
         };
 
@@ -19899,28 +19899,25 @@ $root.PB_Property = (function() {
 
 module.exports = $root;
 
-  if (typeof window !== "undefined") {
-      window.flipper = {
-        connect, disconnect, write, read, closeReader, commands, emitter
-      };
-      console.log("✅ flipper-rpc.js geladen, window.flipper verfügbar:", window.flipper);
-  }
   </script>
-  <script>
-  if (typeof window !== "undefined") {
-    window.flipper = {
-      connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
-      disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
-      write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
-      read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
-      closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
-      commands: typeof commands !== "undefined" ? commands : null,
-      emitter: typeof emitter !== "undefined" ? emitter : null
-    };
-    console.log("✅ Flipper API auf window gemappt:", window.flipper);
-  }
-</script>
 
+  <!-- Mapping auf window.flipper -->
+  <script>
+    if (typeof window !== "undefined") {
+      window.flipper = {
+        connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
+        disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
+        write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
+        read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
+        closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
+        commands: typeof commands !== "undefined" ? commands : null,
+        emitter: typeof emitter !== "undefined" ? emitter : null
+      };
+      console.log("✅ Flipper API gemappt:", window.flipper);
+    }
+  </script>
+
+  <!-- Button-Handler -->
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
