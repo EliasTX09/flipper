@@ -3,53 +3,64 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flipper Minimal WebFlasher</title>
+  <title>Flipper WebFlasher</title>
   <style>
-    body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
-    button, input { margin: 5px; padding: 8px; }
-    #log { background: #000; color: #0f0; padding: 10px; height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    body{margin:0;font-family:monospace;background:#071423;color:#e4f7ff}
+    header{text-align:center;padding:20px}
+    h1{color:#00e6ff}
+    main{display:flex;gap:16px;max-width:900px;margin:20px auto}
+    .card{background:#0b182a;padding:16px;border-radius:8px;flex:1}
+    .console,.filelist{background:#020612;padding:8px;border-radius:6px;height:180px;overflow:auto;white-space:pre-wrap}
+    .progress{background:#081825;height:10px;border-radius:6px;margin:8px 0}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#00e6ff,#9b5cff)}
+    button{margin:4px;padding:8px;border-radius:4px;background:#052033;color:#e4f7ff;cursor:pointer}
+    button:hover{background:#13314b}
   </style>
 </head>
 <body>
-  <h1>Flipper Minimal WebFlasher</h1>
-  <input type="file" id="fw" accept=".zip,.tgz,.tar.gz">
-  <button id="connect">🔌 Verbinden</button>
-  <div id="log">Bereit.</div>
+  <header><h1>Flipper WebFlasher</h1></header>
+  <main>
+    <div class="card">
+      <input type="file" id="fw" accept=".zip,.tgz,.tar.gz"><br>
+      <button id="connect" disabled>🔌 Verbinden</button>
+      <button id="flash" disabled>⚡ Upload</button>
+      <button id="reboot" disabled>🔄 Reboot</button>
+      <div class="progress"><div id="bar" class="bar"></div></div>
+      <div id="log" class="console">Bereit.</div>
+    </div>
+    <div class="card">
+      <h3>Inhalt:</h3>
+      <div id="files" class="filelist">(keine Datei)</div>
+    </div>
+  </main>
 
-  <!-- JSZip und Pako für Archive -->
+  <!-- externe libs -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <!-- deine generierte protobuf-Klassen -->
+  <script src="./flipper-rpc.js"></script>
 
   <script>
-    const logEl = document.getElementById('log');
-    const fwInput = document.getElementById('fw');
-    let selectedEntries = [];
+    const logEl=document.getElementById('log');
+    const barEl=document.getElementById('bar');
+    const filesEl=document.getElementById('files');
+    const fwInput=document.getElementById('fw');
+    const btnConnect=document.getElementById('connect');
+    const btnFlash=document.getElementById('flash');
+    const btnReboot=document.getElementById('reboot');
+    let selectedEntries=[];
 
-    function log(msg) {
-      logEl.textContent += "\n" + msg;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+    let port, writer, reader;
 
-    // --- Serial handling ---
-    let port;
-    async function connectFlipper() {
-      try {
-        port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
-        log("✅ Verbunden mit Flipper");
-      } catch (err) {
-        log("❌ Fehler beim Verbinden: " + err);
-      }
-    }
-
-    // --- Datei-Handling ---
-    function parseTar(u8) {
-      const files=[]; const block=512; let off=0;
-      const dec=new TextDecoder(); const readStr=a=>dec.decode(a).replace(/\0+$/,'').trim();
+    function log(m){logEl.textContent+="\n"+m;logEl.scrollTop=logEl.scrollHeight;}
+    function setProgress(p){barEl.style.width=Math.max(0,Math.min(100,p))+"%";}
+    function parseTar(u8){
+      const files=[];const block=512;let off=0;
+      const dec=new TextDecoder();const readStr=a=>dec.decode(a).replace(/\0+$/,'').trim();
       while(off+block<=u8.length){
-        const h=u8.subarray(off,off+block); const name=readStr(h.subarray(0,100));
-        if(!name){ if(h.every(b=>b===0)) break; off+=block; continue; }
-        const size=parseInt(readStr(h.subarray(124,136)),8)||0; off+=block;
+        const h=u8.subarray(off,off+block);const name=readStr(h.subarray(0,100));
+        if(!name){if(h.every(b=>b===0))break;off+=block;continue;}
+        const size=parseInt(readStr(h.subarray(124,136)),8)||0;off+=block;
         const data=u8.subarray(off,off+size);
         files.push({path:name,data:new Uint8Array(data)});
         off+=Math.ceil(size/block)*block;
@@ -57,30 +68,78 @@
       return files;
     }
 
-    fwInput.addEventListener('change', async () => {
-      try {
-        const file = fwInput.files[0];
-        const buf = new Uint8Array(await file.arrayBuffer());
+    fwInput.addEventListener('change',async()=>{
+      try{
+        const file=fwInput.files[0];
+        const buf=new Uint8Array(await file.arrayBuffer());
         let entries=[];
-        const name = file.name.toLowerCase();
-        if (name.endsWith('.zip')) {
-          const zip = await JSZip.loadAsync(buf);
-          for (const k of Object.keys(zip.files)) {
-            const e = zip.files[k]; if (e.dir) continue;
-            entries.push({path:k, data:new Uint8Array(await e.async('uint8array'))});
+        const name=file.name.toLowerCase();
+        if(name.endsWith('.zip')){
+          const zip=await JSZip.loadAsync(buf);
+          for(const k of Object.keys(zip.files)){
+            const e=zip.files[k];if(e.dir)continue;
+            entries.push({path:k,data:new Uint8Array(await e.async('uint8array'))});
           }
-        } else {
-          const tarData = name.endsWith('.tgz')||name.endsWith('.tar.gz') ? pako.ungzip(buf) : buf;
-          entries = parseTar(tarData);
+        }else{
+          const tarData=name.endsWith('.tgz')||name.endsWith('.tar.gz')?pako.ungzip(buf):buf;
+          entries=parseTar(tarData);
         }
-        selectedEntries = entries;
+        selectedEntries=entries;
+        filesEl.textContent=entries.map(e=>`${e.path} • ${e.data.length} bytes`).join('\n');
         log(`${entries.length} Datei(en) geladen`);
-      } catch (err) {
-        log("❌ Fehler beim Laden der Firmware: " + err);
-      }
+        btnConnect.disabled=false;
+      }catch(err){log("Fehler beim Entpacken: "+err);}
     });
 
-    document.getElementById('connect').onclick = connectFlipper;
+    btnConnect.onclick=async()=>{
+      try{
+        port=await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer=port.writable.getWriter();
+        reader=port.readable.getReader();
+        log("✅ Verbunden");
+        btnFlash.disabled=false;
+        btnReboot.disabled=false;
+      }catch(e){log("❌ Verbinden fehlgeschlagen: "+e);}
+    };
+
+    async function sendChunk(data){
+      const chunkSize=512;
+      for(let off=0; off<data.length; off+=chunkSize){
+        const chunk=data.subarray(off, off+chunkSize);
+        await writer.write(chunk);
+        await new Promise(r=>setTimeout(r,5));
+      }
+    }
+
+    btnFlash.onclick=async()=>{
+      if(!selectedEntries.length){log("⚠️ Keine Firmware geladen.");return;}
+      try{
+        let i=0;
+        for(const e of selectedEntries){
+          i++;
+          log(`➡️ Upload ${e.path}`);
+          await sendChunk(e.data);
+          log(`✅ ${e.path} (${i}/${selectedEntries.length})`);
+          setProgress(20+Math.floor(80*(i/selectedEntries.length)));
+        }
+        setProgress(100);
+        log("🎉 Upload abgeschlossen. Update am Flipper manuell starten oder Reboot drücken.");
+      }catch(err){log("❌ Upload-Fehler: "+err);}
+    };
+
+    btnReboot.onclick=async()=>{
+      try{
+        log("➡️ Sende System.Reboot RPC...");
+        // hier nutzen wir deine generierte protobuf Klassen
+        const root=protobuf.roots["default"]||protobuf.loadSync;
+        const SysReboot=root.lookupType("System.RebootRequest");
+        const msg=SysReboot.create({});
+        const buffer=SysReboot.encode(msg).finish();
+        await writer.write(buffer);
+        log("🔄 Reboot-Befehl gesendet");
+      }catch(err){log("❌ Reboot fehlgeschlagen: "+err);}
+    };
   </script>
 </body>
 </html>
