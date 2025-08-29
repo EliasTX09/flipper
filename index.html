@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Updfgfater</title>
+  <title>Flipper Zero Updater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -19057,7 +19057,7 @@ $root.PB_Gpio = (function() {
             if (!writer)
                 writer = $Writer.create();
             if (message.mode != null && Object.hasOwnProperty.call(message, "mode"))
-                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.mode);
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.mode);<
             return writer;
         };
 
@@ -19906,22 +19906,18 @@ module.exports = $root;
       console.log("✅ flipper-rpc.js geladen, window.flipper verfügbar:", window.flipper);
   }
   </script>
-<script>
-  if (typeof window.flipper === "undefined") {
-    try {
-      window.flipper = {
-        connect: typeof connect !== "undefined" ? connect : null,
-        disconnect: typeof disconnect !== "undefined" ? disconnect : null,
-        write: typeof write !== "undefined" ? write : null,
-        read: typeof read !== "undefined" ? read : null,
-        closeReader: typeof closeReader !== "undefined" ? closeReader : null,
-        commands: typeof commands !== "undefined" ? commands : null,
-        emitter: typeof emitter !== "undefined" ? emitter : null,
-      };
-      console.log("✅ Flipper API auf window gemappt:", window.flipper);
-    } catch (err) {
-      console.error("❌ Fehler beim Setup von window.flipper:", err);
-    }
+  <script>
+  if (typeof window !== "undefined") {
+    window.flipper = {
+      connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
+      disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
+      write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
+      read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
+      closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
+      commands: typeof commands !== "undefined" ? commands : null,
+      emitter: typeof emitter !== "undefined" ? emitter : null
+    };
+    console.log("✅ Flipper API auf window gemappt:", window.flipper);
   }
 </script>
 
