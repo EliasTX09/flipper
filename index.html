@@ -2,18 +2,18 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero WebUpdater</title>
+  <title>Flipper Zero Debug WebUpdater</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
+    body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
     button:hover { opacity: 0.8; }
-    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    #log { background: #222; padding: 10px; border-radius: 6px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
     #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
     #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
   </style>
 </head>
 <body>
-  <h1>⚡ Flipper Zero WebUpdater</h1>
+  <h1>🐞 Flipper Zero Debug Updater</h1>
 
   <input type="file" id="fwFile" />
   <br><br>
@@ -27,30 +27,9 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- Deine flipper-rpc.browser.js laden -->
+  <!-- Dein Browser-RPC -->
   <script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/flipper-rpc.browser.js"></script>
 
-  <!-- Fallback / Sicherstellen, dass window.flipper existiert -->
-  <script>
-    console.log("📢 Start: Seite geladen");
-
-    if (typeof window.flipper === "undefined") {
-      window.flipper = {
-        connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
-        disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
-        write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
-        read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
-        closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
-        commands: typeof commands !== "undefined" ? commands : null,
-        emitter: typeof emitter !== "undefined" ? emitter : null
-      };
-      console.log("✅ window.flipper nachgeladen:", window.flipper);
-    } else {
-      console.log("✅ window.flipper vorhanden:", window.flipper);
-    }
-  </script>
-
-  <!-- Haupt-App -->
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
@@ -61,67 +40,91 @@
       logEl.textContent += "\n" + msg;
       logEl.scrollTop = logEl.scrollHeight;
     }
+
     function setProgress(p) {
       barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
-    document.getElementById("connectBtn").addEventListener("click", async () => {
-      try {
-        log("➡️ Versuche Connect...");
-        await window.flipper.connect();
-        log("✅ Verbunden mit Flipper");
-      } catch (err) {
-        log("❌ Fehler beim Verbinden: " + err);
+    // --- Setup window.flipper ---
+    log("📢 Start: Seite geladen");
+
+    if (typeof window.flipper === "undefined") {
+      window.flipper = {
+        connect: typeof connect !== "undefined" ? connect : null,
+        disconnect: typeof disconnect !== "undefined" ? disconnect : null,
+        write: typeof write !== "undefined" ? write : null,
+        read: typeof read !== "undefined" ? read : null,
+        closeReader: typeof closeReader !== "undefined" ? closeReader : null,
+        commands: typeof commands !== "undefined" ? commands : null,
+        emitter: typeof emitter !== "undefined" ? emitter : null
+      };
+      log("⚠️ window.flipper neu gesetzt");
+    } else {
+      log("✅ window.flipper war schon vorhanden");
+    }
+
+    log("🔎 window.flipper Keys: " + Object.keys(window.flipper));
+
+    // --- Funktion Wrapper ---
+    function wrapFunc(obj, key) {
+      if (typeof obj[key] === "function") {
+        const orig = obj[key];
+        obj[key] = async (...args) => {
+          log(`➡️ CALL ${key}(${JSON.stringify(args)})`);
+          try {
+            const res = await orig(...args);
+            log(`✅ RESULT ${key}: ${JSON.stringify(res)}`);
+            return res;
+          } catch (err) {
+            log(`❌ ERROR in ${key}: ${err}`);
+            throw err;
+          }
+        };
       }
+    }
+
+    // Wrap alles in flipper
+    Object.keys(window.flipper).forEach(k => wrapFunc(window.flipper, k));
+    if (window.flipper.commands) {
+      Object.keys(window.flipper.commands).forEach(k => wrapFunc(window.flipper.commands, k));
+    }
+
+    // --- Button Handlers ---
+    document.getElementById("connectBtn").addEventListener("click", async () => {
+      try { await window.flipper.connect(); } catch (e) {}
     });
 
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
-      try {
-        log("➡️ Versuche Disconnect...");
-        await window.flipper.disconnect();
-        log("❌ Getrennt");
-      } catch (err) {
-        log("❌ Fehler beim Trennen: " + err);
-      }
+      try { await window.flipper.disconnect(); } catch (e) {}
     });
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
-      try {
-        log("➡️ Versuche Reboot...");
-        await window.flipper.commands.system.reboot("os");
-        log("🔄 Reboot gesendet");
-      } catch (err) {
-        log("❌ Fehler beim Reboot: " + err);
-      }
+      try { await window.flipper.commands.system.reboot("os"); } catch (e) {}
     });
 
     document.getElementById("updateBtn").addEventListener("click", async () => {
       if (!fwFileInput.files.length) {
-        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
+        log("⚠️ Keine Firmware-Datei ausgewählt!");
         return;
       }
       const file = fwFileInput.files[0];
-      log("📦 Lade Firmware: " + file.name);
-
+      log("📦 Datei: " + file.name);
       try {
         const buf = new Uint8Array(await file.arrayBuffer());
-        log("➡️ Sende Firmware an Flipper...");
+        log("➡️ Upload...");
         setProgress(0);
-
         await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
-
         setProgress(100);
-        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+        log("✅ Upload abgeschlossen");
       } catch (err) {
-        log("❌ Fehler beim Update: " + err);
+        log("❌ Fehler beim Upload: " + err);
       }
     });
 
-    // Auto-Check nach 2s
+    // Auto-Check
     setTimeout(() => {
-      console.log("⏱ Auto-Check: window.flipper=", window.flipper);
+      log("⏱ Auto-Check window.flipper: " + JSON.stringify(Object.keys(window.flipper)));
     }, 2000);
   </script>
-
 </body>
 </html>
