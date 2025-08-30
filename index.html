@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Debug WebUpdater</title>
+  <title>Flipper Zero Debug Updater</title>
   <style>
     body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -59,8 +59,6 @@
         emitter: typeof emitter !== "undefined" ? emitter : null
       };
       log("⚠️ window.flipper neu gesetzt");
-    } else {
-      log("✅ window.flipper war schon vorhanden");
     }
 
     log("🔎 window.flipper Keys: " + Object.keys(window.flipper));
@@ -83,7 +81,6 @@
       }
     }
 
-    // Wrap alles in flipper
     Object.keys(window.flipper).forEach(k => wrapFunc(window.flipper, k));
     if (window.flipper.commands) {
       Object.keys(window.flipper.commands).forEach(k => wrapFunc(window.flipper.commands, k));
@@ -91,24 +88,46 @@
 
     // --- Button Handlers ---
     document.getElementById("connectBtn").addEventListener("click", async () => {
-      try { await window.flipper.connect(); } catch (e) {}
+      log("🖱 Button Connect gedrückt");
+      if (!window.flipper || !window.flipper.connect) {
+        log("❌ flipper.connect nicht definiert");
+        return;
+      }
+      try { await window.flipper.connect(); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
-      try { await window.flipper.disconnect(); } catch (e) {}
+      log("🖱 Button Disconnect gedrückt");
+      if (!window.flipper || !window.flipper.disconnect) {
+        log("❌ flipper.disconnect nicht definiert");
+        return;
+      }
+      try { await window.flipper.disconnect(); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
-      try { await window.flipper.commands.system.reboot("os"); } catch (e) {}
+      log("🖱 Button Reboot gedrückt");
+      if (!window.flipper?.commands?.system) {
+        log("❌ flipper.commands.system nicht vorhanden");
+        return;
+      }
+      try { await window.flipper.commands.system.reboot("os"); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("updateBtn").addEventListener("click", async () => {
+      log("🖱 Button Update gedrückt");
       if (!fwFileInput.files.length) {
         log("⚠️ Keine Firmware-Datei ausgewählt!");
         return;
       }
+      if (!window.flipper?.commands?.storage) {
+        log("❌ flipper.commands.storage nicht vorhanden");
+        return;
+      }
+
       const file = fwFileInput.files[0];
       log("📦 Datei: " + file.name);
+
       try {
         const buf = new Uint8Array(await file.arrayBuffer());
         log("➡️ Upload...");
