@@ -2,59 +2,38 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper WebUpdater</title>
+  <title>Flipper Zero WebUpdahgfdter</title>
   <style>
-    body { background:#111; color:#eee; font-family:monospace; padding:20px; }
-    #log { background:#222; padding:10px; height:320px; overflow-y:auto; white-space:pre-wrap; margin-top:10px; }
-    button { margin:4px; padding:8px 16px; border:none; border-radius:4px; cursor:pointer; }
-    button:hover { opacity:0.8; }
-    #progress { width: 100%; background:#333; border-radius:4px; margin-top:10px; }
-    #bar { width:0; height:12px; background:#0f0; border-radius:4px; }
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
+    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
+    button:hover { opacity: 0.8; }
+    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
+    #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
   </style>
 </head>
 <body>
-  <h1>Flipper WebUpdater</h1>
+  <h1>⚡ Flipper Zero WebUpdater</h1>
 
-  <input type="file" id="fwFile" /><br><br>
+  <input type="file" id="fwFile" />
+  <br><br>
 
-  <button id="btnConnect">Connect</button>
-  <button id="btnDisconnect">Disconnect</button>
-  <button id="btnReboot">Reboot</button>
-  <button id="btnUpdate">Upload Firmware</button>
+  <button id="connectBtn">🔌 Connect</button>
+  <button id="disconnectBtn">❌ Disconnect</button>
+  <button id="rebootBtn">🔄 Reboot</button>
+  <button id="updateBtn">⬆️ Update</button>
 
   <div id="progress"><div id="bar"></div></div>
+  <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- protobuf runtime -->
-  <script src="https://unpkg.com/protobufjs/dist/protobuf.min.js"></script>
-
-  <!-- flipper-rpc.js from GitHub raw, adapted to map window.flipper -->
-  <script>
-    (function(){
-      // Dynamically load your flipper-rpc.js
-      const s = document.createElement('script');
-      s.src = 'https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/flipper-rpc.js';
-      s.onload = () => {
-        if (typeof connect !== "undefined") {
-          window.flipper = {
-            connect, disconnect, write, read, closeReader,
-            commands: typeof commands !== "undefined" ? commands : null,
-            emitter: typeof emitter !== "undefined" ? emitter : null
-          };
-          log('✅ window.flipper initialized: ' + JSON.stringify(Object.keys(window.flipper)));
-        } else {
-          log('❌ connect() not found in RPC bundle. Is it browser-ready?');
-        }
-      };
-      s.onerror = () => log('❌ Failed to load flipper-rpc.js');
-      document.head.appendChild(s);
-    })();
-  </script>
+  <!-- Dein browserfähiges RPC-Skript -->
+  <script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/flipper-rpc.browser.js"></script>
 
   <script>
-    const logEl = document.getElementById('log');
-    const barEl = document.getElementById('bar');
-    const fwInput = document.getElementById('fwFile');
+    const logEl = document.getElementById("log");
+    const barEl = document.getElementById("bar");
+    const fwFileInput = document.getElementById("fwFile");
 
     function log(msg) {
       console.log(msg);
@@ -63,56 +42,66 @@
     }
 
     function setProgress(p) {
-      barEl.style.width = Math.min(100, Math.max(0, p)) + '%';
+      barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
-    document.getElementById('btnConnect').onclick = async () => {
-      if (!window.flipper) return log('API missing');
-      log('🔌 Connecting...');
+    // Debug: check ob flipper geladen ist
+    document.addEventListener("DOMContentLoaded", () => {
+      log("📢 Seite geladen");
+      log("📢 window.flipper vorhanden? " + (typeof window.flipper !== "undefined"));
+      if (window.flipper) {
+        log("🔎 Keys: " + Object.keys(window.flipper));
+      }
+    });
+
+    document.getElementById("connectBtn").addEventListener("click", async () => {
       try {
         await window.flipper.connect();
-        log('✅ Connected');
-      } catch (e) {
-        log('❌ Connect error: ' + e);
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
       }
-    };
+    });
 
-    document.getElementById('btnDisconnect').onclick = async () => {
-      if (!window.flipper) return log('API missing');
-      log('✂ Disconnecting...');
+    document.getElementById("disconnectBtn").addEventListener("click", async () => {
       try {
         await window.flipper.disconnect();
-        log('✅ Disconnected');
-      } catch (e) {
-        log('❌ Disconnect error: ' + e);
+        log("❌ Getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
       }
-    };
+    });
 
-    document.getElementById('btnReboot').onclick = async () => {
-      if (!window.flipper?.commands) return log('commands missing');
-      log('🔄 Sending reboot...');
+    document.getElementById("rebootBtn").addEventListener("click", async () => {
       try {
-        await window.flipper.commands.system.reboot('os');
-        log('✅ Reboot sent');
-      } catch (e) {
-        log('❌ Reboot error: ' + e);
+        await window.flipper.commands.system.reboot("os");
+        log("🔄 Reboot gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
       }
-    };
+    });
 
-    document.getElementById('btnUpdate').onclick = async () => {
-      const file = fwInput.files[0];
-      if (!file) return log('No firmware file selected');
-      if (!window.flipper?.commands) return log('commands missing');
-      log('Uploading firmware: ' + file.name);
+    document.getElementById("updateBtn").addEventListener("click", async () => {
+      if (!fwFileInput.files.length) {
+        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
+        return;
+      }
+      const file = fwFileInput.files[0];
+      log("📦 Lade Firmware: " + file.name);
+
       try {
-        const data = new Uint8Array(await file.arrayBuffer());
-        await window.flipper.commands.storage.write('/ext/update/' + file.name, data);
+        const buf = new Uint8Array(await file.arrayBuffer());
+        log("➡️ Sende Firmware an Flipper...");
+        setProgress(0);
+
+        await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
+
         setProgress(100);
-        log('✅ Upload complete');
-      } catch (e) {
-        log('❌ Upload error: ' + e);
+        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+      } catch (err) {
+        log("❌ Fehler beim Update: " + err);
       }
-    };
+    });
   </script>
 </body>
 </html>
