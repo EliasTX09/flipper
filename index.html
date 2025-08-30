@@ -33,6 +33,35 @@
   <!-- Dein flipper-rpc.browser.js über jsDelivr laden -->
   <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/flipper-rpc.browser.js"></script>
 
+  <!-- Window.flipper Setup -->
+  <script>
+    function logSetup(msg) {
+      const logEl = document.getElementById("log");
+      if (logEl) {
+        logEl.textContent += `[SETUP] ${msg}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      console.log("[SETUP]", msg);
+    }
+
+    if (typeof window !== "undefined") {
+      window.flipper = {
+        connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
+        disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
+        write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
+        read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
+        closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
+        commands: typeof commands !== "undefined" ? commands : null,
+        emitter: typeof emitter !== "undefined" ? emitter : null
+      };
+      logSetup("✅ window.flipper gesetzt");
+      logSetup("🔑 Keys: " + Object.keys(window.flipper));
+    } else {
+      logSetup("❌ window nicht definiert");
+    }
+  </script>
+
+  <!-- Main-App Script -->
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
@@ -48,7 +77,6 @@
       barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
-    // Prüfen ob window.flipper existiert
     window.addEventListener("load", () => {
       log("📢 Seite geladen");
       log("📢 protobuf vorhanden? " + (typeof protobuf !== "undefined"));
@@ -58,7 +86,6 @@
       }
     });
 
-    // Button-Handler
     document.getElementById("connectBtn").addEventListener("click", async () => {
       log("🖱 Button Connect gedrückt");
       try {
