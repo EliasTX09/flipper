@@ -1,143 +1,282 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>⚡ Flipper Zero Web Updater</title>
+  <meta charset="utf-8" />
+  <title>Flipper Serial Tools (Basis)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
-    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
-    button:hover { opacity: 0.8; }
-    #log { background: #222; padding: 10px; border-radius: 6px; height: 300px; overflow-y: auto; white-space: pre-wrap; }
-    #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
-    #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
+    :root { color-scheme: dark; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b0b0f; color:#e8e8ee; margin:0; }
+    header { padding:16px 20px; border-bottom:1px solid #1f2030; position:sticky; top:0; background:#0b0b0f; z-index:10; }
+    h1 { margin:0; font-size:18px; font-weight:600; letter-spacing:.3px; }
+    main { padding:20px; display:grid; gap:16px; max-width:1100px; margin:auto; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    button, input, select { background:#151628; color:#e8e8ee; border:1px solid #2a2b40; border-radius:10px; padding:10px 14px; font-size:14px; }
+    button { cursor:pointer; transition:transform .06s ease, opacity .15s ease; }
+    button:hover { opacity:.9; }
+    button:active { transform:scale(.98); }
+    .ok { color:#8fff9a; } .warn { color:#ffd36e; } .bad { color:#ff7a7a; }
+    .card { background:#0f1020; border:1px solid #1f2030; border-radius:16px; padding:14px; }
+    #log { background:#0a0b18; border:1px solid #1c1d2b; border-radius:12px; padding:10px; height:340px; overflow:auto; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12.5px; }
+    .pill { border-radius:999px; padding:6px 10px; border:1px solid #2a2b40; background:#121327; font-size:12px; }
+    .kv { display:grid; grid-template-columns: 160px 1fr; gap:8px 14px; font-size:13px; }
+    .muted { opacity:.75 }
+    .hr { height:1px; background:#1d1e2c; margin:8px 0 6px; border:none; }
+    .cmdrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .grow { flex:1 1 240px; }
   </style>
 </head>
 <body>
-  <h1>⚡ Flipper Zero Web Updater</h1>
+  <header>
+    <h1>⚡ Flipper Serial Tools — Basis & Diagnose</h1>
+  </header>
 
-  <input type="file" id="fwFile" />
-  <br><br>
+  <main>
+    <section class="card">
+      <div class="row">
+        <button id="btnConnect">🔌 Connect</button>
+        <button id="btnDisconnect" disabled>❌ Disconnect</button>
+        <span id="status" class="pill muted">Status: nicht verbunden</span>
+      </div>
+      <div class="kv" style="margin-top:10px">
+        <div class="muted">Browser:</div><div id="capBrowser"></div>
+        <div class="muted">Web Serial:</div><div id="capSerial"></div>
+        <div class="muted">Port Info:</div><div id="capPort">–</div>
+      </div>
+    </section>
 
-  <button id="connectBtn">🔌 Connect</button>
-  <button id="disconnectBtn">❌ Disconnect</button>
-  <button id="rebootBtn">🔄 Reboot</button>
-  <button id="updateBtn">⬆️ Update</button>
+    <section class="card">
+      <div class="row">
+        <strong>Quick-Actions</strong>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="btnPing" disabled>📟 send “help”</button>
+        <button id="btnReboot" disabled>🔄 reboot</button>
+        <button id="btnStartRpc" disabled>🧩 start_rpc_session</button>
+      </div>
+      <div class="hr"></div>
+      <div class="cmdrow">
+        <input class="grow" id="cmdInput" placeholder='Custom Befehl, z. B.: storage list /ext' />
+        <button id="btnSend" disabled>➡️ Senden</button>
+      </div>
+      <p class="muted" style="margin:8px 2px 0">
+        Hinweis: Diese Datei nutzt **nur** die serielle CLI (Text). Für echtes RPC (Binary/Protobuf) braucht es später zusätzliche Logik.
+      </p>
+    </section>
 
-  <div id="progress"><div id="bar"></div></div>
-  <h3>Logs</h3>
-  <div id="log"></div>
+    <section class="card">
+      <div class="row"><strong>Logs</strong></div>
+      <div id="log"></div>
+      <div class="row">
+        <button id="btnClear">🧹 Log leeren</button>
+        <span class="muted">EOL: <code>\r</code> (CR)</span>
+      </div>
+    </section>
+  </main>
 
-  <!-- Protobuf laden -->
-  <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.6/dist/protobuf.min.js"></script>
-
-  <!-- Dein flipper-rpc.browser.js über jsDelivr laden -->
-  <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper@main/flipper-rpc.browser.js"></script>
-
-  <!-- Window.flipper Setup -->
   <script>
-    function logSetup(msg) {
-      const logEl = document.getElementById("log");
-      if (logEl) {
-        logEl.textContent += `[SETUP] ${msg}\n`;
-        logEl.scrollTop = logEl.scrollHeight;
-      }
-      console.log("[SETUP]", msg);
-    }
+    // ---------- Mini UI helpers ----------
+    const $ = sel => document.querySelector(sel);
+    const logEl = $("#log");
+    const statusEl = $("#status");
+    const portInfoEl = $("#capPort");
+    const capBrowserEl = $("#capBrowser");
+    const capSerialEl = $("#capSerial");
 
-    if (typeof window !== "undefined") {
-      window.flipper = {
-        connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
-        disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
-        write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
-        read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
-        closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
-        commands: typeof commands !== "undefined" ? commands : null,
-        emitter: typeof emitter !== "undefined" ? emitter : null
-      };
-      logSetup("✅ window.flipper gesetzt");
-      logSetup("🔑 Keys: " + Object.keys(window.flipper));
-    } else {
-      logSetup("❌ window nicht definiert");
-    }
-  </script>
+    const btnConnect = $("#btnConnect");
+    const btnDisconnect = $("#btnDisconnect");
+    const btnPing = $("#btnPing");
+    const btnReboot = $("#btnReboot");
+    const btnStartRpc = $("#btnStartRpc");
+    const btnSend = $("#btnSend");
+    const cmdInput = $("#cmdInput");
+    const btnClear = $("#btnClear");
 
-  <!-- Main-App Script -->
-  <script>
-    const logEl = document.getElementById("log");
-    const barEl = document.getElementById("bar");
-    const fwFileInput = document.getElementById("fwFile");
-
-    function log(msg) {
+    function log(line, cls) {
       const time = new Date().toLocaleTimeString();
-      logEl.textContent += `[${time}] ${msg}\n`;
+      logEl.textContent += `[${time}] ${line}\n`;
       logEl.scrollTop = logEl.scrollHeight;
-      console.log(msg);
     }
-    function setProgress(p) {
-      barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
+    function setStatus(txt, kind="") {
+      statusEl.textContent = `Status: ${txt}`;
+      statusEl.className = `pill ${kind||"muted"}`;
+    }
+    function setButtons(connected) {
+      btnConnect.disabled   = connected;
+      btnDisconnect.disabled= !connected;
+      btnPing.disabled      = !connected;
+      btnReboot.disabled    = !connected;
+      btnStartRpc.disabled  = !connected;
+      btnSend.disabled      = !connected || !cmdInput.value.trim();
     }
 
-    window.addEventListener("load", () => {
-      log("📢 Seite geladen");
-      log("📢 protobuf vorhanden? " + (typeof protobuf !== "undefined"));
-      log("📢 window.flipper vorhanden? " + (typeof window.flipper !== "undefined"));
-      if (window.flipper) {
-        log("🔎 window.flipper Keys: " + Object.keys(window.flipper));
-      }
-    });
+    // ---------- Feature check ----------
+    capBrowserEl.textContent = `${navigator.userAgent}`;
+    const webSerialOK = "serial" in navigator;
+    capSerialEl.innerHTML = webSerialOK
+      ? '<span class="ok">✓ verfügbar</span>'
+      : '<span class="bad">✗ nicht verfügbar (Chrome/Edge nutzen)</span>';
 
-    document.getElementById("connectBtn").addEventListener("click", async () => {
-      log("🖱 Button Connect gedrückt");
-      try {
-        await window.flipper.connect();
-        log("✅ Verbunden mit Flipper");
-      } catch (err) {
-        log("❌ Fehler beim Verbinden: " + err);
-      }
-    });
+    // ---------- Serial plumbing ----------
+    let port = null;
+    let reader = null;
+    let writer = null;
+    let textDec = null;
+    let textEnc = null;
 
-    document.getElementById("disconnectBtn").addEventListener("click", async () => {
-      log("🖱 Button Disconnect gedrückt");
-      try {
-        await window.flipper.disconnect();
-        log("❌ Getrennt");
-      } catch (err) {
-        log("❌ Fehler beim Trennen: " + err);
-      }
-    });
-
-    document.getElementById("rebootBtn").addEventListener("click", async () => {
-      log("🖱 Button Reboot gedrückt");
-      try {
-        await window.flipper.commands.system.reboot("os");
-        log("🔄 Reboot gesendet");
-      } catch (err) {
-        log("❌ Fehler beim Reboot: " + err);
-      }
-    });
-
-    document.getElementById("updateBtn").addEventListener("click", async () => {
-      log("🖱 Button Update gedrückt");
-      if (!fwFileInput.files.length) {
-        log("⚠️ Keine Firmware-Datei ausgewählt!");
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        log("❌ Web Serial nicht verfügbar (Chrome/Edge Desktop verwenden!)", "bad");
         return;
       }
-      const file = fwFileInput.files[0];
-      log("📦 Lade Firmware: " + file.name);
-
       try {
-        const buf = new Uint8Array(await file.arrayBuffer());
-        log("➡️ Sende Firmware an Flipper...");
-        setProgress(0);
+        // Optional: Flipper USB IDs filtern (wenn bekannt); ohne Filter zeigt der Picker alle Ports
+        // const filters = [{ usbVendorId: 0x0483 }]; // Beispiel/STM — ggf. leer lassen
+        // port = await navigator.serial.requestPort({ filters });
+        port = await navigator.serial.requestPort(); // User-Picker
+        await port.open({ baudRate: 115200 });
 
-        await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
+        textDec = new TextDecoderStream();
+        const readableClosed = port.readable.pipeTo(textDec.writable);
+        reader = textDec.readable.getReader();
 
-        setProgress(100);
-        log("✅ Upload abgeschlossen. Starte Update am Flipper manuell.");
+        textEnc = new TextEncoderStream();
+        const writableClosed = textEnc.readable.pipeTo(port.writable);
+        writer = textEnc.writable.getWriter();
+
+        setStatus("verbunden", "ok");
+        setButtons(true);
+
+        try {
+          const info = port.getInfo ? port.getInfo() : {};
+          portInfoEl.textContent = JSON.stringify(info);
+        } catch {
+          portInfoEl.textContent = "(keine Port-Info)";
+        }
+
+        log("✅ Verbunden. Warte auf Ausgabe…");
+        readLoop().catch(err => log("❌ readLoop Fehler: " + err, "bad"));
       } catch (err) {
-        log("❌ Fehler beim Update: " + err);
+        log("❌ Connect-Fehler: " + err, "bad");
+        setStatus("Fehler beim Verbinden", "bad");
+        setButtons(false);
+      }
+    }
+
+    async function readLoop() {
+      // Kontinuierlich Text aus dem Gerät einlesen
+      while (port && reader) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) log(value);
+      }
+    }
+
+    async function writeLine(line) {
+      if (!writer) throw new Error("Writer nicht bereit");
+      // Flipper CLI erwartet CR oder CRLF; wir schicken CR
+      await writer.write(line + "\r");
+    }
+
+    async function disconnectSerial() {
+      try {
+        setStatus("trenne…");
+        if (reader) {
+          try { await reader.cancel(); } catch {}
+          reader.releaseLock();
+          reader = null;
+        }
+        if (writer) {
+          try { await writer.close(); } catch {}
+          writer.releaseLock();
+          writer = null;
+        }
+        if (port) {
+          try { await port.close(); } catch {}
+          port = null;
+        }
+        setStatus("getrennt");
+        setButtons(false);
+        portInfoEl.textContent = "–";
+        log("🔌 Getrennt.");
+      } catch (err) {
+        log("❌ Disconnect-Fehler: " + err, "bad");
+      }
+    }
+
+    // ---------- Button handlers ----------
+    btnConnect.addEventListener("click", async () => {
+      log("🖱 Connect geklickt");
+      await connectSerial();
+      // Nach Connect oft hilfreich: eine leere Zeile senden, um Prompt zu triggern.
+      try { await writeLine(""); } catch {}
+    });
+
+    btnDisconnect.addEventListener("click", () => {
+      log("🖱 Disconnect geklickt");
+      disconnectSerial();
+    });
+
+    btnPing.addEventListener("click", async () => {
+      log("🖱 send ‘help’");
+      try {
+        await writeLine("help");
+      } catch (err) {
+        log("❌ Sende-Fehler: " + err, "bad");
       }
     });
+
+    btnReboot.addEventListener("click", async () => {
+      log("🖱 reboot senden");
+      try {
+        await writeLine("reboot");
+        // Je nach CLI kann es "reboot", "system reboot", o.ä. sein.
+        // Wenn dein Flipper „unknown command“ ausgibt, probier:
+        // await writeLine("system reboot");
+      } catch (err) {
+        log("❌ Sende-Fehler: " + err, "bad");
+      }
+    });
+
+    btnStartRpc.addEventListener("click", async () => {
+      log("🖱 start_rpc_session senden (nur Text, keine Protobufs!)");
+      try {
+        await writeLine("start_rpc_session");
+        log("ℹ️ Falls jetzt Binärdaten kommen: das ist erwartbar – hier fehlt noch der RPC/Protobuf-Teil.");
+      } catch (err) {
+        log("❌ Sende-Fehler: " + err, "bad");
+      }
+    });
+
+    cmdInput.addEventListener("input", () => {
+      btnSend.disabled = !port || !cmdInput.value.trim();
+    });
+
+    btnSend.addEventListener("click", async () => {
+      const cmd = cmdInput.value.trim();
+      if (!cmd) return;
+      log("➡️ " + cmd);
+      try {
+        await writeLine(cmd);
+      } catch (err) {
+        log("❌ Sende-Fehler: " + err, "bad");
+      }
+    });
+
+    btnClear.addEventListener("click", () => {
+      logEl.textContent = "";
+    });
+
+    // ---------- Life-cycle ----------
+    (async () => {
+      log("📢 Seite geladen");
+      if (!("serial" in navigator)) {
+        log("❌ Web Serial fehlt. Bitte Chrome oder Edge (Desktop) verwenden.", "bad");
+      } else {
+        log("✅ Web Serial verfügbar. Klicke auf Connect und wähle den Flipper-Port.");
+      }
+      setButtons(false);
+    })();
   </script>
 </body>
 </html>
