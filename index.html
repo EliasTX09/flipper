@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero WebUpdahgfdter</title>
+  <title>Flipper Zero WebUpdater</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
@@ -27,9 +27,30 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- Dein browserfähiges RPC-Skript -->
+  <!-- Deine flipper-rpc.browser.js laden -->
   <script src="https://raw.githubusercontent.com/EliasTX09/flipper/refs/heads/main/flipper-rpc.browser.js"></script>
 
+  <!-- Fallback / Sicherstellen, dass window.flipper existiert -->
+  <script>
+    console.log("📢 Start: Seite geladen");
+
+    if (typeof window.flipper === "undefined") {
+      window.flipper = {
+        connect: typeof connect !== "undefined" ? connect : () => { throw new Error("connect() nicht definiert"); },
+        disconnect: typeof disconnect !== "undefined" ? disconnect : () => { throw new Error("disconnect() nicht definiert"); },
+        write: typeof write !== "undefined" ? write : () => { throw new Error("write() nicht definiert"); },
+        read: typeof read !== "undefined" ? read : () => { throw new Error("read() nicht definiert"); },
+        closeReader: typeof closeReader !== "undefined" ? closeReader : () => { throw new Error("closeReader() nicht definiert"); },
+        commands: typeof commands !== "undefined" ? commands : null,
+        emitter: typeof emitter !== "undefined" ? emitter : null
+      };
+      console.log("✅ window.flipper nachgeladen:", window.flipper);
+    } else {
+      console.log("✅ window.flipper vorhanden:", window.flipper);
+    }
+  </script>
+
+  <!-- Haupt-App -->
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
@@ -40,22 +61,13 @@
       logEl.textContent += "\n" + msg;
       logEl.scrollTop = logEl.scrollHeight;
     }
-
     function setProgress(p) {
       barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
-    // Debug: check ob flipper geladen ist
-    document.addEventListener("DOMContentLoaded", () => {
-      log("📢 Seite geladen");
-      log("📢 window.flipper vorhanden? " + (typeof window.flipper !== "undefined"));
-      if (window.flipper) {
-        log("🔎 Keys: " + Object.keys(window.flipper));
-      }
-    });
-
     document.getElementById("connectBtn").addEventListener("click", async () => {
       try {
+        log("➡️ Versuche Connect...");
         await window.flipper.connect();
         log("✅ Verbunden mit Flipper");
       } catch (err) {
@@ -65,6 +77,7 @@
 
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
       try {
+        log("➡️ Versuche Disconnect...");
         await window.flipper.disconnect();
         log("❌ Getrennt");
       } catch (err) {
@@ -74,6 +87,7 @@
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
       try {
+        log("➡️ Versuche Reboot...");
         await window.flipper.commands.system.reboot("os");
         log("🔄 Reboot gesendet");
       } catch (err) {
@@ -102,6 +116,12 @@
         log("❌ Fehler beim Update: " + err);
       }
     });
+
+    // Auto-Check nach 2s
+    setTimeout(() => {
+      console.log("⏱ Auto-Check: window.flipper=", window.flipper);
+    }, 2000);
   </script>
+
 </body>
 </html>
