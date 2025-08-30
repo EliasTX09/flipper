@@ -22579,15 +22579,4 @@ BufferWriter.prototype.string = function write_string_buffer(value) {
 BufferWriter._configure();
 
 },{"./util/minimal":17,"./writer":18}]},{},[1]);
-if (typeof window !== "undefined") {
-  window.flipper = {
-    connect,
-    disconnect,
-    write,
-    read,
-    closeReader,
-    commands,
-    emitter
-  };
-  console.log("✅ flipper-rpc.browser.js geladen, window.flipper verfügbar:", window.flipper);
-}
+
