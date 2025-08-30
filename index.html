@@ -2,18 +2,18 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Flipper Zero Debug Updater</title>
+  <title>Flipper WebUpdater (Beta)</title>
   <style>
-    body { font-family: monospace; background: #111; color: #eee; padding: 20px; }
-    button { margin: 5px; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; }
-    button:hover { opacity: 0.8; }
-    #log { background: #222; padding: 10px; border-radius: 6px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
-    #progress { background: #333; border-radius: 6px; height: 20px; margin: 10px 0; }
-    #bar { background: lime; height: 100%; width: 0%; border-radius: 6px; }
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
+    button { margin:5px; padding:10px 20px; border-radius:6px; border:none; cursor:pointer; }
+    button:hover { opacity:0.8; }
+    #log { background:#222; padding:10px; border-radius:6px; height:300px; overflow-y:auto; white-space:pre-wrap; }
+    #progress { background:#333; border-radius:6px; height:20px; margin:10px 0; }
+    #bar { background:lime; height:100%; width:0%; border-radius:6px; }
   </style>
 </head>
 <body>
-  <h1>nthFlipper Zero Debug Updater</h1>
+  <h1>⚡ Flipper Zero WebUpdater</h1>
 
   <input type="file" id="fwFile" />
   <br><br>
@@ -27,9 +27,6 @@
   <h3>Logs</h3>
   <div id="log"></div>
 
-  <!-- Dein Browser-RPC -->
- <script src="https://cdn.jsdelivr.net/gh/EliasTX09/flipper/flipper-rpc.browser.js"></script>
-
   <script>
     const logEl = document.getElementById("log");
     const barEl = document.getElementById("bar");
@@ -40,110 +37,122 @@
       logEl.textContent += "\n" + msg;
       logEl.scrollTop = logEl.scrollHeight;
     }
-
     function setProgress(p) {
       barEl.style.width = Math.max(0, Math.min(100, p)) + "%";
     }
 
-    // --- Setup window.flipper ---
-    log("📢 Start: Seite geladen");
+    // === WebSerial Transport ===
+    let port = null;
+    let writer = null;
+    let reader = null;
 
-    if (typeof window.flipper === "undefined") {
-      window.flipper = {
-        connect: typeof connect !== "undefined" ? connect : null,
-        disconnect: typeof disconnect !== "undefined" ? disconnect : null,
-        write: typeof write !== "undefined" ? write : null,
-        read: typeof read !== "undefined" ? read : null,
-        closeReader: typeof closeReader !== "undefined" ? closeReader : null,
-        commands: typeof commands !== "undefined" ? commands : null,
-        emitter: typeof emitter !== "undefined" ? emitter : null
-      };
-      log("⚠️ window.flipper neu gesetzt");
+    async function connect() {
+      log("➡️ Starte Connect...");
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      writer = port.writable.getWriter();
+      reader = port.readable.getReader();
+      log("✅ Serial-Port geöffnet");
+      return true;
     }
 
-    log("🔎 window.flipper Keys: " + Object.keys(window.flipper));
+    async function disconnect() {
+      log("➡️ Starte Disconnect...");
+      if (reader) { await reader.cancel(); reader.releaseLock(); reader=null; }
+      if (writer) { writer.releaseLock(); writer=null; }
+      if (port) { await port.close(); port=null; }
+      log("❌ Serial-Port geschlossen");
+    }
 
-    // --- Funktion Wrapper ---
-    function wrapFunc(obj, key) {
-      if (typeof obj[key] === "function") {
-        const orig = obj[key];
-        obj[key] = async (...args) => {
-          log(`➡️ CALL ${key}(${JSON.stringify(args)})`);
-          try {
-            const res = await orig(...args);
-            log(`✅ RESULT ${key}: ${JSON.stringify(res)}`);
-            return res;
-          } catch (err) {
-            log(`❌ ERROR in ${key}: ${err}`);
-            throw err;
-          }
-        };
+    async function write(data) {
+      if (!writer) throw new Error("Kein Writer aktiv");
+      log("➡️ Sende Daten (" + data.length + " Bytes)");
+      await writer.write(data);
+    }
+
+    async function read() {
+      if (!reader) throw new Error("Kein Reader aktiv");
+      const { value, done } = await reader.read();
+      log("⬅️ Gelesene Daten: " + (value ? value.length : 0) + " Bytes");
+      return { value, done };
+    }
+
+    async function closeReader() {
+      if (reader) {
+        await reader.cancel();
+        reader.releaseLock();
+        reader = null;
+        log("ℹ️ Reader geschlossen");
       }
     }
 
-    Object.keys(window.flipper).forEach(k => wrapFunc(window.flipper, k));
-    if (window.flipper.commands) {
-      Object.keys(window.flipper.commands).forEach(k => wrapFunc(window.flipper.commands, k));
-    }
+    // === Stubs für RPC-Kommandos ===
+    const commands = {
+      system: {
+        reboot: async (mode="os") => {
+          log("🚧 Stub: Reboot-Befehl gesendet (Mode=" + mode + ")");
+          // hier müsste RPC-Kommando encoded gesendet werden
+        }
+      },
+      storage: {
+        write: async (path, buf) => {
+          log("🚧 Stub: Firmware würde nach " + path + " geschrieben (" + buf.length + " Bytes)");
+        }
+      }
+    };
 
-    // --- Button Handlers ---
+    // === window.flipper API ===
+    window.flipper = { connect, disconnect, write, read, closeReader, commands };
+
+    log("📢 Seite geladen");
+    log("📢 window.flipper Keys: " + Object.keys(window.flipper));
+
+    // === Button Handler ===
     document.getElementById("connectBtn").addEventListener("click", async () => {
-      log("🖱 Button Connect gedrückt");
-      if (!window.flipper || !window.flipper.connect) {
-        log("❌ flipper.connect nicht definiert");
-        return;
+      try {
+        await window.flipper.connect();
+        log("✅ Verbunden mit Flipper");
+      } catch (err) {
+        log("❌ Fehler beim Verbinden: " + err);
       }
-      try { await window.flipper.connect(); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("disconnectBtn").addEventListener("click", async () => {
-      log("🖱 Button Disconnect gedrückt");
-      if (!window.flipper || !window.flipper.disconnect) {
-        log("❌ flipper.disconnect nicht definiert");
-        return;
+      try {
+        await window.flipper.disconnect();
+        log("❌ Getrennt");
+      } catch (err) {
+        log("❌ Fehler beim Trennen: " + err);
       }
-      try { await window.flipper.disconnect(); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("rebootBtn").addEventListener("click", async () => {
-      log("🖱 Button Reboot gedrückt");
-      if (!window.flipper?.commands?.system) {
-        log("❌ flipper.commands.system nicht vorhanden");
-        return;
+      try {
+        await window.flipper.commands.system.reboot("os");
+        log("🔄 Reboot gesendet");
+      } catch (err) {
+        log("❌ Fehler beim Reboot: " + err);
       }
-      try { await window.flipper.commands.system.reboot("os"); } catch (e) { log("❌ Fehler: " + e); }
     });
 
     document.getElementById("updateBtn").addEventListener("click", async () => {
-      log("🖱 Button Update gedrückt");
       if (!fwFileInput.files.length) {
-        log("⚠️ Keine Firmware-Datei ausgewählt!");
+        log("⚠️ Bitte zuerst eine Firmware-Datei auswählen!");
         return;
       }
-      if (!window.flipper?.commands?.storage) {
-        log("❌ flipper.commands.storage nicht vorhanden");
-        return;
-      }
-
       const file = fwFileInput.files[0];
-      log("📦 Datei: " + file.name);
-
+      log("📦 Lade Firmware: " + file.name);
       try {
         const buf = new Uint8Array(await file.arrayBuffer());
-        log("➡️ Upload...");
+        log("➡️ Sende Firmware an Flipper...");
         setProgress(0);
         await window.flipper.commands.storage.write("/ext/update/" + file.name, buf);
         setProgress(100);
-        log("✅ Upload abgeschlossen");
+        log("✅ Upload abgeschlossen (Stub). Update muss am Flipper gestartet werden.");
       } catch (err) {
-        log("❌ Fehler beim Upload: " + err);
+        log("❌ Fehler beim Update: " + err);
       }
     });
-
-    // Auto-Check
-    setTimeout(() => {
-      log("⏱ Auto-Check window.flipper: " + JSON.stringify(Object.keys(window.flipper)));
-    }, 2000);
   </script>
 </body>
 </html>
