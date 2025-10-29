@@ -143,7 +143,7 @@
       }
     })();
 
-    // ------------- Fallback (nur wenn Bundle keine connect()/disconnect() bereitstellt) -------------
+    // ------------- Fallback -------------
     let port, reader, writer, readLoopActive = false;
     async function fallbackConnect() {
       if (!('serial' in navigator)) throw new Error('Web Serial nicht verfügbar');
